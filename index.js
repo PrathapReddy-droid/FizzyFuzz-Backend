@@ -34,6 +34,8 @@ app.use(helmet({
 
 app.get("/", (request, response) => {
     ///server to client
+    console.log("connected");
+    
     response.json({
         message: "Server is running " + process.env.PORT
     })
