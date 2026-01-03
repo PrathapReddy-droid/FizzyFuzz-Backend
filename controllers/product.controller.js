@@ -2,10 +2,11 @@ import ProductModel from '../models/product.modal.js';
 import ProductRAMSModel from '../models/productRAMS.js';
 import ProductWEIGHTModel from '../models/productWEIGHT.js';
 import ProductSIZEModel from '../models/productSIZE.js';
-
+import jwt from 'jsonwebtoken'
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import { request } from 'http';
+import decoder from '../middlewares/decoder.js';
 
 
 cloudinary.config({
@@ -122,6 +123,8 @@ export async function createProduct(request, response) {
             productRam: request.body.productRam,
             size: request.body.size,
             productWeight: request.body.productWeight,
+            variants: request.body.variants,
+            seller : request.body.seller
 
         });
 
@@ -162,11 +165,19 @@ export async function createProduct(request, response) {
 //get all products
 export async function getAllProducts(request, response) {
     try {
-
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        let query = {}
+        console.log(token_data?.user.seller);
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
+        
         const { page, limit } = request.query;
-        const totalProducts = await ProductModel.find();
+        const totalProducts = await ProductModel.find(query);
 
-        const products = await ProductModel.find().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
+        const products = await ProductModel.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
 
         const total = await ProductModel.countDocuments(products);
 
@@ -943,6 +954,7 @@ export async function updateProduct(request, response) {
                 productRam: request.body.productRam,
                 size: request.body.size,
                 productWeight: request.body.productWeight,
+                variants: request.body.variants,
             },
             { new: true }
         );

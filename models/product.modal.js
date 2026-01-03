@@ -55,6 +55,28 @@ const productSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
     },
+variants: {
+  color: {
+    type: [String],
+    default: []
+  },
+  ram: {
+    type: [String],
+    default: []
+  },
+  weight: {
+    type: [String],
+    default: []
+  },
+  size: {
+    type: [String],
+    default: []
+  },
+  length: {
+    type: [String],
+    default: []
+  }
+},
     countInStock: {
         type: Number,
         required: true,
@@ -66,6 +88,14 @@ const productSchema = mongoose.Schema({
     isFeatured: {
         type: Boolean,
         default: false,
+    },
+    isApproved : {
+        type: Boolean,
+        default: false,
+    },
+    seller : {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
     },
     discount: {
         type: Number,

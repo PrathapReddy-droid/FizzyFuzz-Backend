@@ -15,7 +15,7 @@ const auth = async(request,response,next)=>{
         }
 
         const decode = await jwt.verify(token,process.env.SECRET_KEY_ACCESS_TOKEN);
-
+        
         if(!decode){
             return response.status(401).json({
                 message : "unauthorized access",
@@ -23,8 +23,10 @@ const auth = async(request,response,next)=>{
                 success : false
             })
         }
-
-        request.userId = decode.id
+        
+        
+        request.userId = decode.user._id
+        request.role = decode.user.role
 
         next()
 

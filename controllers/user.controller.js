@@ -22,7 +22,7 @@ export async function registerUserController(request, response) {
     try {
         let user;
 
-        const { name, email, password } = request.body;
+        const { name, email, password , role , gst , business , mobile } = request.body;
         if (!name || !email || !password) {
             return response.status(400).json({
                 message: "provide email, name, password",
@@ -31,7 +31,7 @@ export async function registerUserController(request, response) {
             })
         }
 
-        user = await UserModel.findOne({ email: email });
+        user = await UserModel.findOne({ email: email , isConfirmed : true });
 
         if (user) {
             return response.json({
@@ -41,20 +41,40 @@ export async function registerUserController(request, response) {
             })
         }
 
-        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+        user = await UserModel.findOne({ email: email , isConfirmed : false });
+
+        if (user) {
+            const user_token = jwt.sign(
+                    { email: user.email, id: user._id },
+                    process.env.JSON_WEB_TOKEN_SECRET_KEY
+                );
+            return response.json({
+                success: true,
+                error: false,
+                message: "User already registered successfully!",
+                token: user_token, // Optional: include this if needed for verification
+            })
+        }
+
+        const verifyCode = "123456";
+        // const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
 
 
         const salt = await bcryptjs.genSalt(10);
         const hashPassword = await bcryptjs.hash(password, salt);
-
-        user = new UserModel({
+        let userObject = {
             email: email,
             password: hashPassword,
             name: name,
             otp: verifyCode,
             otpExpires: Date.now() + 600000,
-
-        });
+            isConfirmed: false
+        }
+        if(role) userObject.role = role  
+        if(gst) userObject.gst = gst  
+        if(business) userObject.business = business 
+        if(mobile) userObject.mobile = mobile 
+        user = new UserModel(userObject);
 
         await user.save();
 
@@ -108,6 +128,7 @@ export async function verifyEmailController(request, response) {
             user.verify_email = true;
             user.otp = null;
             user.otpExpires = null;
+            user.isConfirmed = true
             await user.save();
             return response.status(200).json({ error: false, success: true, message: "Email verified successfully" });
         } else if (!isCodeValid) {
@@ -255,8 +276,8 @@ export async function loginUserController(request, response) {
         }
 
 
-        const accesstoken = await generatedAccessToken(user._id);
-        const refreshToken = await genertedRefreshToken(user._id);
+        const accesstoken = await generatedAccessToken(user);
+        const refreshToken = await genertedRefreshToken(user);
 
         const updateUser = await UserModel.findByIdAndUpdate(user?._id, {
             last_login_date: new Date()

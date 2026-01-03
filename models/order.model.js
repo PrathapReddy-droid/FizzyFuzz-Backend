@@ -5,6 +5,11 @@ const orderSchema = new mongoose.Schema({
         type: mongoose.Schema.ObjectId,
         ref: 'User'
     },
+    sellers_list: [
+    {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }],
     products: [
         {
             productId: {
@@ -24,7 +29,16 @@ const orderSchema = new mongoose.Schema({
             },
             subTotal: {
                 type: Number
-            }
+            },
+            seller: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User"
+            },
+            status:{
+                type: String,
+                enum: ['PENDING', "CONFIRMED","IN-TRANSIT" ,"DELIVERED"],
+                default: "PENDING"
+            }    
         }
     ],
     paymentId: {

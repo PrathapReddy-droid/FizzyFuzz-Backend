@@ -10,6 +10,21 @@ const userSchema = mongoose.Schema({
         required: [true, "Provide email"],
         unique: true
     },
+    mobile: {
+        type: String,
+        required: [true, "Provide mobile"],
+        unique: true
+    },
+    gst: {
+        type: String,
+        required: [true, "Provide gst"],
+        unique: true
+    },
+    business: {
+        type: String,
+        required: [true, "Provide business"],
+        unique: true
+    },
     password: {
         type: String,
         required: [true, "Provide password"]
@@ -63,13 +78,17 @@ const userSchema = mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['ADMIN', "USER"],
+        enum: ['ADMIN', "USER" ,"SELLER"],
         default: "USER"
     },
     signUpWithGoogle:{
         type:Boolean,
         default:false
-    }
+    },
+    isConfirmed:{
+        type:Boolean,
+        default:false
+    },
 },
     { timestamps: true }
 )
