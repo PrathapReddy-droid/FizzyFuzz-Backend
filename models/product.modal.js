@@ -93,6 +93,10 @@ variants: {
         type: Boolean,
         default: false,
     },
+    status : {
+        type: String,
+        default: "PENDING",
+    },
     seller : {
         type: mongoose.Schema.Types.ObjectId,
         required: true,

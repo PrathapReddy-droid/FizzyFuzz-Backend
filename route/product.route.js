@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
-import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController} from '../controllers/product.controller.js';
+import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController, getAllPendingProducts, approveProducts, getPendingProductsBySubCatId} from '../controllers/product.controller.js';
 
 import {removeImageFromCloudinary} from '../controllers/category.controller.js';
 
@@ -11,10 +11,13 @@ productRouter.post('/uploadImages',auth,upload.array('images'),uploadImages);
 productRouter.post('/uploadBannerImages',auth,upload.array('bannerimages'),uploadBannerImages);
 productRouter.post('/create',auth,createProduct);
 productRouter.get('/getAllProducts',getAllProducts);
+productRouter.get('/getAllPendingProducts/:id',getAllPendingProducts);
+productRouter.post('/productApproval',auth,approveProducts);
 productRouter.get('/getAllProductsBanners',getAllProductsBanners);
 productRouter.get('/getAllProductsByCatId/:id',getAllProductsByCatId);
 productRouter.get('/getAllProductsByCatName',getAllProductsByCatName);
 productRouter.get('/getAllProductsBySubCatId/:id',getAllProductsBySubCatId);
+productRouter.get('/getPenindgProductsBySubCatId/:id',getPendingProductsBySubCatId);
 productRouter.get('/getAllProductsBySubCatName',getAllProductsBySubCatName);
 productRouter.get('/getAllProductsByThirdLavelCat/:id',getAllProductsByThirdLavelCatId);
 productRouter.get('/getAllProductsByThirdLavelCatName',getAllProductsBySubCatName);

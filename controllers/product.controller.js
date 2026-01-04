@@ -124,13 +124,12 @@ export async function createProduct(request, response) {
             size: request.body.size,
             productWeight: request.body.productWeight,
             variants: request.body.variants,
-            seller : request.body.seller
+            seller : request.body.seller,
 
         });
 
         product = await product.save();
 
-        console.log(product)
 
         if (!product) {
             response.status(500).json({
@@ -168,7 +167,6 @@ export async function getAllProducts(request, response) {
         let token_data = await decoder(request)
         let role = token_data?.user.role
         let query = {}
-        console.log(token_data?.user.seller);
         
         if(role == "SELLER") { 
             query.seller = token_data?.id
@@ -209,10 +207,108 @@ export async function getAllProducts(request, response) {
     }
 }
 
+//get all pending products
+export async function getAllPendingProducts(request, response) {
+    try {
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        
+        let query = {isApproved:"false"}
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
+        if(request?.params?.id!="null"){
+            query.catId = request.params.id
+        }
+        console.log(query);
+        
+        const { page, limit } = request.query;
+        const totalProducts = await ProductModel.find(query);
+
+        const products = await ProductModel.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
+
+        const total = await ProductModel.countDocuments(products);
+
+        if (!products) {
+            return response.status(400).json({
+                error: true,
+                success: false
+            })
+        }
+
+        return response.status(200).json({
+            error: false,
+            success: true,
+            products: products,
+            total: total,
+            page: parseInt(page),
+            totalPages: Math.ceil(total / limit),
+            totalCount: totalProducts?.length,
+            totalProducts: totalProducts
+        })
+
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
+
+export async function approveProducts(request, response) {
+    try {
+
+        const {requestId,status} = request.body
+        console.log("approveProducts",request.body);
+        
+        let query = {
+            isApproved : true,
+            status
+        }
+
+        const products = await ProductModel.findByIdAndUpdate(requestId,query)
+
+        if (!products) {
+            return response.status(400).json({
+                error: true,
+                success: false
+            })
+        }
+
+        return response.status(200).json({
+            error: false,
+            success: true,
+            message :  `${status} successfully`
+        })
+
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
 
 //get all products by category id
 export async function getAllProductsByCatId(request, response) {
     try {
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        
+        let query = {
+            catId: request.params.id
+        }
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
 
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
@@ -231,9 +327,7 @@ export async function getAllProductsByCatId(request, response) {
             );
         }
 
-        const products = await ProductModel.find({
-            catId: request.params.id
-        }).populate("category")
+        const products = await ProductModel.find(query).populate("category")
             .skip((page - 1) * perPage)
             .limit(perPage)
             .exec();
@@ -266,7 +360,17 @@ export async function getAllProductsByCatId(request, response) {
 //get all products by category name
 export async function getAllProductsByCatName(request, response) {
     try {
-
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        
+        let query = {
+            catName: request.query.catName
+        }
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
 
@@ -285,9 +389,7 @@ export async function getAllProductsByCatName(request, response) {
         }
 
 
-        const products = await ProductModel.find({
-            catName: request.query.catName
-        }).populate("category")
+        const products = await ProductModel.find(query).populate("category")
             .skip((page - 1) * perPage)
             .limit(perPage)
             .exec();
@@ -321,6 +423,17 @@ export async function getAllProductsByCatName(request, response) {
 //get all products by sub category id
 export async function getAllProductsBySubCatId(request, response) {
     try {
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        
+        let query = {
+            subCatId: request.params.id
+        }
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
 
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
@@ -339,9 +452,7 @@ export async function getAllProductsBySubCatId(request, response) {
             );
         }
 
-        const products = await ProductModel.find({
-            subCatId: request.params.id
-        }).populate("category")
+        const products = await ProductModel.find(query).populate("category")
             .skip((page - 1) * perPage)
             .limit(perPage)
             .exec();
@@ -370,6 +481,59 @@ export async function getAllProductsBySubCatId(request, response) {
     }
 }
 
+
+//get all pending products by sub category id
+export async function getPendingProductsBySubCatId(request, response) {
+    try {
+
+        const page = parseInt(request.query.page) || 1;
+        const perPage = parseInt(request.query.perPage) || 10000;
+
+
+        const totalPosts = await ProductModel.countDocuments();
+        const totalPages = Math.ceil(totalPosts / perPage);
+
+        if (page > totalPages) {
+            return response.status(404).json(
+                {
+                    message: "Page not found",
+                    success: false,
+                    error: true
+                }
+            );
+        }
+
+        const products = await ProductModel.find({
+            subCatId: request.params.id,
+            isApproved : false
+        }).populate("category")
+            .skip((page - 1) * perPage)
+            .limit(perPage)
+            .exec();
+
+        if (!products) {
+            response.status(500).json({
+                error: true,
+                success: false
+            })
+        }
+
+        return response.status(200).json({
+            error: false,
+            success: true,
+            products: products,
+            totalPages: totalPages,
+            page: page,
+        })
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
 
 //get all products by sub category name
 export async function getAllProductsBySubCatName(request, response) {
@@ -431,6 +595,16 @@ export async function getAllProductsBySubCatName(request, response) {
 export async function getAllProductsByThirdLavelCatId(request, response) {
     try {
 
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        let query = {
+            thirdsubCatId: request.params.id
+        }
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
 
@@ -448,9 +622,7 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
             );
         }
 
-        const products = await ProductModel.find({
-            thirdsubCatId: request.params.id
-        }).populate("category")
+        const products = await ProductModel.find(query).populate("category")
             .skip((page - 1) * perPage)
             .limit(perPage)
             .exec();
@@ -483,6 +655,16 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
 //get all products by sub category name
 export async function getAllProductsByThirdLavelCatName(request, response) {
     try {
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        console.log(request.params);
+        let query = {
+            thirdsubCat: request.query.thirdsubCat
+        }
+        
+        if(role == "SELLER") { 
+            query.seller = token_data?.id
+        }
 
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
@@ -502,9 +684,7 @@ export async function getAllProductsByThirdLavelCatName(request, response) {
         }
 
 
-        const products = await ProductModel.find({
-            thirdsubCat: request.query.thirdsubCat
-        }).populate("category")
+        const products = await ProductModel.find(query).populate("category")
             .skip((page - 1) * perPage)
             .limit(perPage)
             .exec();
@@ -609,7 +789,6 @@ export async function getAllProductsByRating(request, response) {
             );
         }
 
-        console.log(request.query.subCatId)
 
         let products = [];
 
