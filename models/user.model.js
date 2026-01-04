@@ -17,13 +17,11 @@ const userSchema = mongoose.Schema({
     },
     gst: {
         type: String,
-        required: [true, "Provide gst"],
-        unique: true
+        default: "",
     },
     business: {
         type: String,
-        required: [true, "Provide business"],
-        unique: true
+        default: ""
     },
     password: {
         type: String,

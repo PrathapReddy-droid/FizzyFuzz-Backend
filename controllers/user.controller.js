@@ -22,10 +22,10 @@ export async function registerUserController(request, response) {
     try {
         let user;
 
-        const { name, email, password , role , gst , business , mobile } = request.body;
-        if (!name || !email || !password) {
+        const { name, email, password , mobile } = request.body;
+        if ( !name || !email || !password || !mobile ) {
             return response.status(400).json({
-                message: "provide email, name, password",
+                message: "provide email, name, password and mobile",
                 error: true,
                 success: false
             })
@@ -70,9 +70,102 @@ export async function registerUserController(request, response) {
             otpExpires: Date.now() + 600000,
             isConfirmed: false
         }
-        if(role) userObject.role = role  
         if(gst) userObject.gst = gst  
         if(business) userObject.business = business 
+        if(mobile) userObject.mobile = mobile 
+        user = new UserModel(userObject);
+
+        await user.save();
+
+        // Send verification email
+        await sendEmailFun({
+            sendTo: email,
+            subject: "Verify email from Ecommerce App",
+            text: "",
+            html: VerificationEmail(name, verifyCode)
+        })
+
+
+        // Create a JWT token for verification purposes
+        const token = jwt.sign(
+            { email: user.email, id: user._id },
+            process.env.JSON_WEB_TOKEN_SECRET_KEY
+        );
+
+
+        return response.status(200).json({
+            success: true,
+            error: false,
+            message: "User registered successfully! ",
+            token: token, // Optional: include this if needed for verification
+        });
+
+
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
+
+export async function registerSellerController(request, response) {
+    try {
+        let user;
+
+        const { name, email, password , mobile } = request.body;
+        if (!name || !email || !password || !mobile ) {
+            return response.status(400).json({
+                message: "provide email, name, password",
+                error: true,
+                success: false
+            })
+        }
+
+        user = await UserModel.findOne({ email: email , isConfirmed : true });
+
+        if (user) {
+            return response.json({
+                message: "User already Registered with this email",
+                error: true,
+                success: false
+            })
+        }
+
+        user = await UserModel.findOne({ email: email , isConfirmed : false });
+
+        if (user) {
+            const user_token = jwt.sign(
+                    { email: user.email, id: user._id },
+                    process.env.JSON_WEB_TOKEN_SECRET_KEY
+                );
+            return response.json({
+                success: true,
+                error: false,
+                message: "User already registered successfully!",
+                token: user_token, // Optional: include this if needed for verification
+            })
+        }
+
+        const verifyCode = "123456";
+        // const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+
+        const salt = await bcryptjs.genSalt(10);
+        const hashPassword = await bcryptjs.hash(password, salt);
+        let userObject = {
+            email: email,
+            password: hashPassword,
+            name: name,
+            otp: verifyCode,
+            otpExpires: Date.now() + 600000,
+            isConfirmed: false,
+            role : "SELLER",
+            gst : "",
+            business : ""
+        }
         if(mobile) userObject.mobile = mobile 
         user = new UserModel(userObject);
 
