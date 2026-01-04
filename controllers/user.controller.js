@@ -70,8 +70,6 @@ export async function registerUserController(request, response) {
             otpExpires: Date.now() + 600000,
             isConfirmed: false
         }
-        if(gst) userObject.gst = gst  
-        if(business) userObject.business = business 
         if(mobile) userObject.mobile = mobile 
         user = new UserModel(userObject);
 
