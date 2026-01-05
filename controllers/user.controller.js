@@ -463,7 +463,8 @@ export async function userAvatarController(request, response) {
 
         //first remove image from cloudinary
         const imgUrl = user.avatar;
-
+        console.log("useruseruser : ",user);
+        
         const urlArr = imgUrl.split("/");
         const avatar_image = urlArr[urlArr.length - 1];
 
@@ -513,6 +514,62 @@ export async function userAvatarController(request, response) {
     }
 }
 
+export async function userKYCController(request, response) {
+  try {
+    let imagesArr = [];
+
+    const userId = request.userId;
+    const images = request.files;
+    const {kycType} = request.body
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return response.status(404).json({
+        message: "User not found",
+        error: true,
+        success: false
+      });
+    }
+
+    // Remove old KYC image
+    if (user.kyc_img) {
+      const imageName = user.kyc_img.split("/").pop().split(".")[0];
+      await cloudinary.uploader.destroy(imageName);
+    }
+
+    const options = {
+      use_filename: true,
+      unique_filename: false,
+      overwrite: true,
+    };
+
+    for (let i = 0; i < images.length; i++) {
+      const result = await cloudinary.uploader.upload(images[i].path, options);
+      imagesArr.push(result.secure_url);
+      fs.unlinkSync(`uploads/${images[i].filename}`);
+    }
+
+    // ✅ SAVE TO CORRECT FIELD
+    user.kyc_img = imagesArr[0];
+    user.kyc_type = kycType
+    await user.save();
+
+    return response.status(200).json({
+      error: false,
+      success: true,
+      kycDocument: imagesArr[0]
+    });
+
+  } catch (error) {
+    return response.status(500).json({
+      message: error.message,
+      error: true,
+      success: false
+    });
+  }
+}
+
+
 export async function removeImageFromCloudinary(request, response) {
     const imgUrl = request.query.img;
 
@@ -541,7 +598,7 @@ export async function updateUserDetails(request, response) {
     try {
         const userId = request.userId //auth middleware
         let req = request.body
-        const { name, email, mobile, password , role , gst , business , address } = request.body;
+        const { name, email, mobile, password , role ,kycNumber , gst , business, ifsc, bankAccount , address } = request.body;
 
         const userExist = await UserModel.findById(userId);
         if (!userExist)
@@ -555,6 +612,11 @@ export async function updateUserDetails(request, response) {
         if(req?.gst) updater.gst = gst
         if(req?.business) updater.business = business
         if(req?.address) updater.address = address
+        if(req?.ifsc) updater.ifsc = ifsc
+        if(req?.bankAccount) updater.bank_account = bankAccount
+        if(req?.panNumber) updater.pan_number = panNumber
+        if(req?.aadhaarNumber) updater.aadhaar_number = aadhaarNumber 
+        if(req?.kycNumber) updater.kyc_number = kycNumber 
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
             updater,

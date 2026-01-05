@@ -19,6 +19,14 @@ const userSchema = mongoose.Schema({
         type: String,
         default: "",
     },
+    bank_account: {
+        type: String,
+        default: "",
+    },
+    ifsc: {
+        type: String,
+        default: "",
+    },
     business: {
         type: String,
         default: ""
@@ -28,6 +36,18 @@ const userSchema = mongoose.Schema({
         required: [true, "Provide password"]
     },
     avatar: {
+        type: String,
+        default: ""
+    },
+    kyc_img : {
+        type: String,
+        default: ""
+    },
+    kyc_number : {
+        type: String,
+        default: ""
+    },
+    kyc_type : {
         type: String,
         default: ""
     },
