@@ -62,6 +62,10 @@ const userSchema = mongoose.Schema({
             ref: 'address'
         }
     ],
+    address: {
+        type: String,
+        default: ""
+    },
     orderHistory: [
         {
             type: mongoose.Schema.ObjectId,

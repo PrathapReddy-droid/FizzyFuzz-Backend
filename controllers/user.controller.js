@@ -540,20 +540,24 @@ export async function removeImageFromCloudinary(request, response) {
 export async function updateUserDetails(request, response) {
     try {
         const userId = request.userId //auth middleware
-        const { name, email, mobile, password } = request.body;
+        let req = request.body
+        const { name, email, mobile, password , role , gst , business , address } = request.body;
 
         const userExist = await UserModel.findById(userId);
         if (!userExist)
             return response.status(400).send('The user cannot be Updated!');
 
-
-        const updateUser = await UserModel.findByIdAndUpdate(
-            userId,
-            {
+        let updater = {
                 name: name,
                 mobile: mobile,
                 email: email,
-            },
+            }
+        if(req?.gst) updater.gst = gst
+        if(req?.business) updater.business = business
+        if(req?.address) updater.address = address
+        const updateUser = await UserModel.findByIdAndUpdate(
+            userId,
+            updater,
             { new: true }
         )
 
