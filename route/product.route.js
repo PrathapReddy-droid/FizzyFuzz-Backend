@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
-import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController, getAllPendingProducts, approveProducts, getPendingProductsBySubCatId} from '../controllers/product.controller.js';
+import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController, getAllPendingProducts, approveProducts, getPendingProductsBySubCatId, uploadVideoController, deleteAdminVideo, getAllAdminVideo} from '../controllers/product.controller.js';
 
 import {removeImageFromCloudinary} from '../controllers/category.controller.js';
+import uploadVideo from '../utils/multerController.js';
 
 const productRouter = Router();
 
@@ -20,6 +21,9 @@ productRouter.get('/getAllProductsBySubCatId/:id',getAllProductsBySubCatId);
 productRouter.get('/getPenindgProductsBySubCatId/:id',getPendingProductsBySubCatId);
 productRouter.get('/getAllProductsBySubCatName',getAllProductsBySubCatName);
 productRouter.get('/getAllProductsByThirdLavelCat/:id',getAllProductsByThirdLavelCatId);
+productRouter.put( "/uploadVideo",auth,uploadVideo.single("video"),uploadVideoController);
+productRouter.delete("/deleteVideo",auth,deleteAdminVideo);
+productRouter.get("/getAllVideo",getAllAdminVideo);
 productRouter.get('/getAllProductsByThirdLavelCatName',getAllProductsBySubCatName);
 productRouter.get('/getAllProductsByPrice',getAllProductsByPrice);
 productRouter.get('/getAllProductsByRating',getAllProductsByRating);

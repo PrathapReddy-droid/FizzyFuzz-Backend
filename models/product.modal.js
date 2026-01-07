@@ -137,6 +137,18 @@ variants: {
         type: String,
         default: '',
     },
+    video_url: {
+        type: String,
+        default: '',
+    },
+    shipment_days : {
+        type :Number, 
+        required : true
+    },
+    product_pincode : {
+        type :String, 
+        required : true
+    },
     isDisplayOnHomeBanner: {
         type: Boolean,
         default: false,

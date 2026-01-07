@@ -7,6 +7,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import { request } from 'http';
 import decoder from '../middlewares/decoder.js';
+import { s3 } from '../utils/awsConfig.js';
+import videoModel from '../models/video.model.js';
 
 
 cloudinary.config({
@@ -125,7 +127,9 @@ export async function createProduct(request, response) {
             productWeight: request.body.productWeight,
             variants: request.body.variants,
             seller : request.body.seller,
-
+            video_url : request.body.video_url,
+            shipment_days : request.body.shipment_days,
+            product_pincode : request.body.product_pincode
         });
 
         product = await product.save();
@@ -148,8 +152,6 @@ export async function createProduct(request, response) {
             success: true,
             product: product
         })
-
-
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,
@@ -588,7 +590,65 @@ export async function getAllProductsBySubCatName(request, response) {
     }
 }
 
+export const uploadVideoController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { title, description , user_id } = req.body;
+    const file = req.file;
+    console.log(req.file);
+    
+    if (!file) {
+      return res.status(400).json({
+        error: true,
+        message: "Video file is required"
+      });
+    }
 
+    if (!title) {
+      return res.status(400).json({
+        error: true,
+        message: "Video title is required"
+      });
+    }
+
+    const s3Key = `admin-videos/${Date.now()}-${file.originalname}`;
+    const fileStream = fs.createReadStream(req.file.path);
+    const uploadParams = {
+      Bucket : process.env.AWS_BUCKET_NAME,
+      Key: s3Key,
+      Body: fileStream,
+      ContentType: file.mimetype,
+    //   ACL: "public-read"
+    };
+
+    const s3Result = await s3.upload(uploadParams).promise();
+
+    const video = await videoModel.create({
+      title,
+      description,
+      user_id,
+      video_url: s3Result.Location,
+      s3_key: s3Key,
+      uploaded_by: userId,
+      live_link : `d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+    });
+
+    video.video_url = `d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+
+    return res.status(201).json({
+      success: true,
+      message: "Video uploaded successfully",
+      video
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: true,
+      message: error.message
+    });
+  }
+};
 
 
 //get all products by sub category id
@@ -602,7 +662,7 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
             thirdsubCatId: request.params.id
         }
         
-        if(role == "SELLER") { 
+        if(role == "SELLER") {
             query.seller = token_data?.id
         }
         const page = parseInt(request.query.page) || 1;
@@ -650,6 +710,48 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
         })
     }
 }
+
+export const deleteAdminVideo = async (req, res) => {
+  try {
+    const { id } = req.body;
+    console.log(req.body);
+    
+    const video = await videoModel.findById(id);
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
+    await s3.deleteObject({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: video.s3_key
+    }).promise();
+
+    await video.deleteOne();
+
+    res.json({ success: true, message: "Video deleted" });
+
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+export const getAllAdminVideo = async (req, res) => {
+  try {
+    console.log(req.body);
+    
+    const video = await videoModel.find();
+
+    if (!video.length) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
+    
+    res.json({ success: true, message: "Video fetched successfully" , video });
+
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
 
 
 //get all products by sub category name
@@ -1106,9 +1208,9 @@ export async function removeImageFromCloudinary(request, response) {
 //updated product 
 export async function updateProduct(request, response) {
     try {
-        const product = await ProductModel.findByIdAndUpdate(
-            request.params.id,
-            {
+        let token_data = await decoder(request)
+        let role = token_data?.user.role
+        const updater = {
                 name: request.body.name,
                 subCat: request.body.subCat,
                 description: request.body.description,
@@ -1134,7 +1236,15 @@ export async function updateProduct(request, response) {
                 size: request.body.size,
                 productWeight: request.body.productWeight,
                 variants: request.body.variants,
-            },
+                video_url : request.body.video_url,
+                shipment_days : request.body.shipment_days,
+                product_pincode : request.body.product_pincode
+            }
+        if(role == "SELLER") updater.isApproved = false 
+        
+        const product = await ProductModel.findByIdAndUpdate(
+            request.params.id,
+            updater,
             { new: true }
         );
 

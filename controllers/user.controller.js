@@ -9,6 +9,7 @@ import genertedRefreshToken from '../utils/generatedRefreshToken.js';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import ReviewModel from '../models/reviews.model.js.js';
+import  {sendEmail} from '../utils/sendMail.js';
 
 cloudinary.config({
     cloud_name: process.env.cloudinary_Config_Cloud_Name,
@@ -17,6 +18,18 @@ cloudinary.config({
     secure: true,
 });
 
+
+export const generateUniqueFFId = async (UserModel) => {
+  let uid;
+  let exists = true;
+
+  while (exists) {
+    uid = "FF" + Math.floor(10000000 + Math.random() * 90000000);
+    exists = await UserModel.exists({ uid });
+  }
+
+  return uid;
+};
 
 export async function registerUserController(request, response) {
     try {
@@ -44,6 +57,7 @@ export async function registerUserController(request, response) {
         user = await UserModel.findOne({ email: email , isConfirmed : false });
 
         if (user) {
+            await sendMail(user.otp,user.email,user.name)
             const user_token = jwt.sign(
                     { email: user.email, id: user._id },
                     process.env.JSON_WEB_TOKEN_SECRET_KEY
@@ -56,13 +70,15 @@ export async function registerUserController(request, response) {
             })
         }
 
-        const verifyCode = "123456";
-        // const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+        // const verifyCode = "123456";
+        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+        await sendEmail(verifyCode,email,name)
 
 
         const salt = await bcryptjs.genSalt(10);
         const hashPassword = await bcryptjs.hash(password, salt);
         let userObject = {
+            uid : await generateUniqueFFId(),
             email: email,
             password: hashPassword,
             name: name,
@@ -122,78 +138,83 @@ export async function registerSellerController(request, response) {
             })
         }
 
-        user = await UserModel.findOne({ email: email , isConfirmed : true });
+        user = await UserModel.findOne({ email: email });
+        const salt = await bcryptjs.genSalt(10);
+        const hashPassword = await bcryptjs.hash(password, salt);
+        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+        let expire = Date.now() + 600000
 
-        if (user) {
+        if (user?.isConfirmed===true) {
             return response.json({
                 message: "User already Registered with this email",
                 error: true,
                 success: false
             })
         }
+        else if (user?.isConfirmed===false) {
+            sendEmail(verifyCode,user.email,user.name).then(async res=>{
+                await UserModel.findByIdAndUpdate(user._id,{$set:{otpExpires:expire,otp:verifyCode,password:hashPassword}})
+                const user_token = jwt.sign(
+                        { email: user.email, id: user._id },
+                        process.env.JSON_WEB_TOKEN_SECRET_KEY
+                    );
 
-        user = await UserModel.findOne({ email: email , isConfirmed : false });
+                return response.json({
+                    success: true,
+                    error: false,
+                    message: "user re-registered successfully!",
+                    token: user_token, // Optional: include this if needed for verification
+                })
+            }).catch(err=>{
+                console.log(err);
+                
+                return response.json({
+                    success: false,
+                    error: true,
+                    message: "OTP Generation Failed",
+                })
+            })
+        }else{
+            // const verifyCode = "123456";
 
-        if (user) {
-            const user_token = jwt.sign(
+            
+            let userObject = {
+                email: email,
+                password: hashPassword,
+                name: name,
+                otp: verifyCode,
+                otpExpires: expire,
+                isConfirmed: false,
+                role : "SELLER",
+                gst : "",
+                business : ""
+            }
+            if(mobile) userObject.mobile = mobile 
+            user = new UserModel(userObject);
+
+            await user.save();
+            sendEmail(verifyCode,user.email,user.name).then(async res=>{
+                const token = jwt.sign(
                     { email: user.email, id: user._id },
                     process.env.JSON_WEB_TOKEN_SECRET_KEY
                 );
-            return response.json({
-                success: true,
-                error: false,
-                message: "User already registered successfully!",
-                token: user_token, // Optional: include this if needed for verification
+
+                return response.status(200).json({
+                    success: true,
+                    error: false,
+                    message: "User registered successfully! ",
+                    token: token, // Optional: include this if needed for verification
+                });
+
+            }).catch(err=>{
+                console.log(err);
+                return response.json({
+                    success: false,
+                    error: true,
+                    message: "OTP Generation Failed",
+                })
             })
         }
-
-        const verifyCode = "123456";
-        // const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-
-        const salt = await bcryptjs.genSalt(10);
-        const hashPassword = await bcryptjs.hash(password, salt);
-        let userObject = {
-            email: email,
-            password: hashPassword,
-            name: name,
-            otp: verifyCode,
-            otpExpires: Date.now() + 600000,
-            isConfirmed: false,
-            role : "SELLER",
-            gst : "",
-            business : ""
-        }
-        if(mobile) userObject.mobile = mobile 
-        user = new UserModel(userObject);
-
-        await user.save();
-
-        // Send verification email
-        await sendEmailFun({
-            sendTo: email,
-            subject: "Verify email from Ecommerce App",
-            text: "",
-            html: VerificationEmail(name, verifyCode)
-        })
-
-
-        // Create a JWT token for verification purposes
-        const token = jwt.sign(
-            { email: user.email, id: user._id },
-            process.env.JSON_WEB_TOKEN_SECRET_KEY
-        );
-
-
-        return response.status(200).json({
-            success: true,
-            error: false,
-            message: "User registered successfully! ",
-            token: token, // Optional: include this if needed for verification
-        });
-
-
-
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,
@@ -598,7 +619,7 @@ export async function updateUserDetails(request, response) {
     try {
         const userId = request.userId //auth middleware
         let req = request.body
-        const { name, email, mobile, password , role ,kycNumber , gst , business, ifsc, bankAccount , address } = request.body;
+        const { name, email, mobile, password , role,kycType,pinCode ,kycNumber , gst , business, ifsc, bankAccount , address } = request.body;
 
         const userExist = await UserModel.findById(userId);
         if (!userExist)
@@ -614,9 +635,10 @@ export async function updateUserDetails(request, response) {
         if(req?.address) updater.address = address
         if(req?.ifsc) updater.ifsc = ifsc
         if(req?.bankAccount) updater.bank_account = bankAccount
-        if(req?.panNumber) updater.pan_number = panNumber
-        if(req?.aadhaarNumber) updater.aadhaar_number = aadhaarNumber 
+        if(req?.kycType=="AADHAAR") updater.aadhaar_number = kycNumber
+        if(req?.kycType=="PAN") updater.pan_number = kycNumber
         if(req?.kycNumber) updater.kyc_number = kycNumber 
+        if(req?.pinCode) updater.pin_number = pinCode 
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
             updater,
@@ -669,25 +691,21 @@ export async function forgotPasswordController(request, response) {
             user.otpExpires = Date.now() + 600000;
 
             await user.save();
-
-            await sendEmailFun({
-                sendTo: email,
-                subject: "Verify OTP from Ecommerce App",
-                text: "",
-                html: VerificationEmail(user.name, verifyCode)
+            sendEmail(verifyCode,user.email,user.name).then(async res=>{
+                return response.json({
+                    message: "check your email",
+                    error: false,
+                    success: true
+                })
+            }).catch(err=>{
+                console.log(err);
+                return response.json({
+                    success: false,
+                    error: true,
+                    message: "OTP Generation Failed",
+                })
             })
-
-
-            return response.json({
-                message: "check your email",
-                error: false,
-                success: true
-            })
-
         }
-
-
-
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,

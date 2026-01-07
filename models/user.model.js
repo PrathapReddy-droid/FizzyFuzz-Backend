@@ -1,6 +1,11 @@
 import mongoose from "mongoose";
 
 const userSchema = mongoose.Schema({
+    uid: {
+        type: String,
+        unique: true,
+        index: true
+    },
     name: {
         type: String,
         required: [true, "Provide name"]
@@ -102,6 +107,15 @@ const userSchema = mongoose.Schema({
         type: String,
         enum: ['ADMIN', "USER" ,"SELLER"],
         default: "USER"
+    },
+    pin_number : {
+        type: String
+    },
+    aadhaar_number : {
+        type: String
+    },
+    pan_number : {
+        type: String
     },
     signUpWithGoogle:{
         type:Boolean,
