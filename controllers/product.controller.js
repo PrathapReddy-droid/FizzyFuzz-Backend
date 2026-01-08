@@ -591,37 +591,44 @@ export async function getAllProductsBySubCatName(request, response) {
 }
 
 export const uploadVideoController = async (req, res) => {
+  let localFilePath;
   try {
     const userId = req.userId;
-    const { title, description , user_id } = req.body;
+    const { title, description, user_id } = req.body;
     const file = req.file;
-    console.log(req.file);
-    
+
     if (!file) {
       return res.status(400).json({
         error: true,
-        message: "Video file is required"
+        message: "Video file is required",
       });
     }
 
     if (!title) {
       return res.status(400).json({
         error: true,
-        message: "Video title is required"
+        message: "Video title is required",
       });
     }
 
+    localFilePath = file.path; // store for cleanup
+
     const s3Key = `admin-videos/${Date.now()}-${file.originalname}`;
-    const fileStream = fs.createReadStream(req.file.path);
+    const fileStream = fs.createReadStream(localFilePath);
+
     const uploadParams = {
-      Bucket : process.env.AWS_BUCKET_NAME,
+      Bucket: process.env.AWS_BUCKET_NAME,
       Key: s3Key,
       Body: fileStream,
       ContentType: file.mimetype,
-    //   ACL: "public-read"
     };
 
     const s3Result = await s3.upload(uploadParams).promise();
+
+    // ✅ DELETE LOCAL FILE AFTER SUCCESSFUL UPLOAD
+    fs.unlink(localFilePath, (err) => {
+      if (err) console.error("Failed to delete local file:", err);
+    });
 
     const video = await videoModel.create({
       title,
@@ -630,22 +637,28 @@ export const uploadVideoController = async (req, res) => {
       video_url: s3Result.Location,
       s3_key: s3Key,
       uploaded_by: userId,
-      live_link : `d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+      live_link: `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`,
     });
 
-    video.video_url = `d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+    video.video_url = `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`;
 
     return res.status(201).json({
       success: true,
       message: "Video uploaded successfully",
-      video
+      video,
     });
 
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
+    // 🧹 cleanup if error occurs after file upload
+    if (localFilePath && fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath);
+    }
+
     return res.status(500).json({
       error: true,
-      message: error.message
+      message: error.message,
     });
   }
 };

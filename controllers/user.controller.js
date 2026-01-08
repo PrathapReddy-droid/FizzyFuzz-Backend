@@ -10,6 +10,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import ReviewModel from '../models/reviews.model.js.js';
 import  {sendEmail} from '../utils/sendMail.js';
+import decoder from '../middlewares/decoder.js';
 
 cloudinary.config({
     cloud_name: process.env.cloudinary_Config_Cloud_Name,
@@ -227,10 +228,10 @@ export async function registerSellerController(request, response) {
 export async function verifyEmailController(request, response) {
     try {
         const { email, otp } = request.body;
-
+        
         const user = await UserModel.findOne({ email: email });
         if (!user) {
-            return response.status(400).json({ error: true, success: false, message: "User not found" });
+            return response.status(400).json({ error: true, success: false, message: "OTP expired" });
         }
 
         const isCodeValid = user.otp === otp;
