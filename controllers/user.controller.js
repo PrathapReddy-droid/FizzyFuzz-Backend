@@ -79,7 +79,7 @@ export async function registerUserController(request, response) {
         const salt = await bcryptjs.genSalt(10);
         const hashPassword = await bcryptjs.hash(password, salt);
         let userObject = {
-            uid : await generateUniqueFFId(),
+            uid : await generateUniqueFFId(UserModel),
             email: email,
             password: hashPassword,
             name: name,
