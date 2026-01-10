@@ -26,7 +26,7 @@ export const generateUniqueFFId = async (UserModel) => {
 
   while (exists) {
     uid = "FF" + Math.floor(10000000 + Math.random() * 90000000);
-    exists = await UserModel.exists({ uid });
+    exists = await UserModel.findOne({ uid });
   }
 
   return uid;
