@@ -20,13 +20,34 @@ import orderRouter from './route/order.route.js';
 import logoRouter from './route/logo.route.js';
 
 const app = express();
-app.use(cors());
-app.options('*', cors())
 
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://admin.fizzyfuzz.in",
+    "https://admin.fizzyfuzz.in",
+];
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            // allow non-browser tools like Postman
+            if (!origin) return callback(null, true);
+
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error("Not allowed by CORS"));
+        },
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"]
+    })
+);
+
+app.options("*", cors());
 
 app.use(express.json())
 app.use(cookieParser())
-// app.use(morgan())
 app.use(helmet({
     crossOriginResourcePolicy: false
 }))

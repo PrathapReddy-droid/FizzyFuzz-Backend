@@ -1,43 +1,38 @@
 import jwt from 'jsonwebtoken'
 
-const auth = async(request,response,next)=>{
+const auth = async (req, res, next) => {
     try {
-        const token = request.cookies.accessToken || request?.headers?.authorization?.split(" ")[1];
+        const token =
+            req.cookies.accessToken ||
+            req.headers.authorization?.split(" ")[1];
 
-        // if(!token){
-        //    token = request.query.token; 
-        // }
-
-        if(!token){
-            return response.status(401).json({
-                message : "Provide token"
-            })
+        if (!token) {
+            return res.status(401).json({ message: "Token missing" });
         }
 
-        const decode = await jwt.verify(token,process.env.SECRET_KEY_ACCESS_TOKEN);
-        
-        if(!decode){
-            return response.status(401).json({
-                message : "unauthorized access",
-                error : true,
-                success : false
-            })
-        }
-        
-        
-        request.userId = decode.user._id
-        request.role = decode.user.role
+        const decoded = jwt.verify(
+            token,
+            process.env.SECRET_KEY_ACCESS_TOKEN
+        );
 
-        next()
+        req.userId = decoded.id;
+        req.role = decoded.role;
+
+        next();
 
     } catch (error) {
-        console.log(error);
-        return response.status(500).json({
-            message : "You have not login",
-            error : true,
-            success : false
-        })
+        if (error.name === "TokenExpiredError") {
+            return res.status(401).json({
+                message: "Access token expired",
+                tokenExpired: true
+            });
+        }
+
+        return res.status(401).json({
+            message: "Unauthorized"
+        });
     }
-}
+};
+
 
 export default auth

@@ -430,7 +430,9 @@ export async function loginUserController(request, response) {
 //logout controller
 export async function logoutController(request, response) {
     try {
-        const userid = request.userId //middleware
+        let token = await decoder(null,request.query.token)
+        console.log(token);
+        let userid = token.id
 
         const cookiesOption = {
             httpOnly: true,

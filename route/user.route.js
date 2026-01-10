@@ -9,7 +9,7 @@ userRouter.post('/sellerRegister',registerSellerController)
 userRouter.post('/verifyEmail',verifyEmailController)
 userRouter.post('/login',loginUserController)
 userRouter.post('/authWithGoogle',authWithGoogle)
-userRouter.get('/logout',auth,logoutController);
+userRouter.get('/logout',logoutController);
 userRouter.put('/user-avatar',auth,upload.array('avatar'),userAvatarController);
 userRouter.put('/upload-kyc',auth,upload.array('kycDocument'),userKYCController);
 userRouter.delete('/deteleImage',auth,removeImageFromCloudinary);
@@ -26,6 +26,7 @@ userRouter.get('/getAllReviews',getAllReviews);
 userRouter.get('/getAllUsers',getAllUsers);
 userRouter.delete('/deleteMultiple',deleteMultiple);
 userRouter.delete('/deleteUser/:id',deleteUser);
+userRouter.post("/refresh-token",refreshToken);
 
 
 export default userRouter
