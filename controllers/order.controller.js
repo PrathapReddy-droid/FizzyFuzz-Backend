@@ -95,9 +95,7 @@ export async function getOrderDetailsController(request, response) {
     try {
         const userId = request.userId // order id
         let token_data = await decoder(request)
-        console.log("token_data?.user : ",token_data?.user);
         let role = token_data?.user.role
-        console.log(token_data.user._id,role);
         
         let query = {}
         if(role == "SELLER") { 
@@ -523,7 +521,15 @@ export const totalSalesController = async (request, response) => {
 
 export const totalUsersController = async (request, response) => {
     try {
+        let body = request.body
+        console.log(body);
+        
         const users = await UserModel.aggregate([
+            {
+                $match:{
+                    role : body.type
+                }
+            },
             {
                 $group: {
                     _id: {

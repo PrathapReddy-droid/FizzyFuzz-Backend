@@ -7,12 +7,14 @@ const videoSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
-
     description: {
       type: String,
       trim: true
     },
-
+    role: {
+      type: String,
+      trim: true
+    },
     video_url: {
       type: String,
       required: true
@@ -36,7 +38,7 @@ const videoSchema = new mongoose.Schema(
     },
     is_active: {
       type: Boolean,
-      default: true
+      default: false
     }
   },
   { timestamps: true }

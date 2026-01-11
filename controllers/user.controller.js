@@ -180,6 +180,7 @@ export async function registerSellerController(request, response) {
 
             
             let userObject = {
+                uid : await generateUniqueFFId(UserModel),
                 email: email,
                 password: hashPassword,
                 name: name,
@@ -405,14 +406,18 @@ export async function loginUserController(request, response) {
         response.cookie('accessToken', accesstoken, cookiesOption)
         response.cookie('refreshToken', refreshToken, cookiesOption)
 
+        // let userData = {
+        //     isLiveButtonEnabled : userData.isLiveEnabled,
 
+        // }
         return response.json({
             message: "Login successfully",
             error: false,
             success: true,
             data: {
                 accesstoken,
-                refreshToken
+                refreshToken,
+                
             }
         })
     } catch (error) {
@@ -620,9 +625,9 @@ export async function removeImageFromCloudinary(request, response) {
 //update user details
 export async function updateUserDetails(request, response) {
     try {
-        const userId = request.userId //auth middleware
+        const userId = request.userId 
         let req = request.body
-        const { name, email, mobile, password , role,kycType,pinCode ,kycNumber , gst , business, ifsc, bankAccount , address } = request.body;
+        const { name, email, mobile, password , role,panNumber,pinCode ,aadhaarNumber , gst , business, ifsc, bankAccount , address } = request.body;
 
         const userExist = await UserModel.findById(userId);
         if (!userExist)
@@ -638,9 +643,8 @@ export async function updateUserDetails(request, response) {
         if(req?.address) updater.address = address
         if(req?.ifsc) updater.ifsc = ifsc
         if(req?.bankAccount) updater.bank_account = bankAccount
-        if(req?.kycType=="AADHAAR") updater.aadhaar_number = kycNumber
-        if(req?.kycType=="PAN") updater.pan_number = kycNumber
-        if(req?.kycNumber) updater.kyc_number = kycNumber 
+        if(req?.aadhaarNumber) updater.aadhaar_number = aadhaarNumber
+        if(req?.panNumber) updater.pan_number = panNumber 
         if(req?.pinCode) updater.pin_number = pinCode 
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
@@ -670,6 +674,29 @@ export async function updateUserDetails(request, response) {
             success: false
         })
     }
+}
+
+export async function toggleLiveController(request, response) {
+  try {
+    const userId = request.body?.userId;
+    const userExist = await UserModel.findById(userId);
+    
+    if (!userExist) {
+        return response.status(400).send("The user cannot be Updated!");
+    }
+    await UserModel.findByIdAndUpdate(userId,{isLiveEnabled:!userExist.isLiveEnabled})
+    return response.json({
+        message: "toggeled live successfully",
+        error: false,
+        success: true
+    })
+  } catch (error) {
+    return response.status(500).json({
+      message: error.message || error,
+      success: false,
+      error: true
+    });
+  }
 }
 
 //forgot password
@@ -1081,11 +1108,12 @@ export async function getAllReviews(request, response) {
 //get all users
 export async function getAllUsers(request, response) {
     try {
-        const { page, limit } = request.query;
+        const { page, limit ,type } = request.query;
 
-        const totalUsers = await UserModel.find();
-
-        const users = await UserModel.find().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
+        let query ={}
+        if(type) query.role = type.toUpperCase()
+        const totalUsers = await UserModel.find(query);
+        const users = await UserModel.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
 
         const total = await UserModel.countDocuments(users);
 

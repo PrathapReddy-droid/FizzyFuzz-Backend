@@ -4,12 +4,10 @@ const decoder = async(request,token=false)=>{
     try {
         let key = token ? process.env.SECRET_KEY_REFRESH_TOKEN : process.env.SECRET_KEY_ACCESS_TOKEN
         if(!token){
-            token = request.cookies.accessToken || request?.headers?.authorization?.split(" ")[1];
+            token = request?.cookies?.accessToken || request?.headers?.authorization?.split(" ")[1];
         }
         if(!token){
-            return response.status(401).json({
-                message : "Provide token"
-            })
+            throw new Error("token not found")
         }
         
         const decode = await jwt.verify(token,key);

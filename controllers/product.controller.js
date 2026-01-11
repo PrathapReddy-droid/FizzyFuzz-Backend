@@ -162,6 +162,19 @@ export async function createProduct(request, response) {
 }
 
 
+const applyRoleFilter = (query, token_data) => {
+  const role = token_data?.user?.role;
+
+  if (role === "SELLER") {
+    query.seller = token_data?.id;
+  }
+
+  if (role !== "SELLER" && role !== "ADMIN") {
+    query.status = "APPROVED";
+  }
+
+  return query;
+};
 
 //get all products
 export async function getAllProducts(request, response) {
@@ -298,64 +311,43 @@ export async function approveProducts(request, response) {
 }
 
 //get all products by category id
-export async function getAllProductsByCatId(request, response) {
-    try {
-        let token_data = await decoder(request)
-        let role = token_data?.user.role
-        console.log(request.params);
-        
-        let query = {
-            catId: request.params.id
-        }
-        
-        if(role == "SELLER") { 
-            query.seller = token_data?.id
-        }
+export async function getAllProductsByCatId(req, res) {
+  try {
+    const token_data = await decoder(req);
 
-        const page = parseInt(request.query.page) || 1;
-        const perPage = parseInt(request.query.perPage) || 10000;
+    let query = {
+      catId: req.params.id
+    };
 
+    query = applyRoleFilter(query, token_data);
 
-        const totalPosts = await ProductModel.countDocuments();
-        const totalPages = Math.ceil(totalPosts / perPage);
+    const page = parseInt(req.query.page) || 1;
+    const perPage = parseInt(req.query.perPage) || 10000;
+    const skip = (page - 1) * perPage;
 
-        if (page > totalPages) {
-            return response.status(404).json(
-                {
-                    message: "Page not found",
-                    success: false,
-                    error: true
-                }
-            );
-        }
+    const [products, totalPosts] = await Promise.all([
+      ProductModel.find(query)
+        .populate("category")
+        .skip(skip)
+        .limit(perPage),
+      ProductModel.countDocuments(query)
+    ]);
 
-        const products = await ProductModel.find(query).populate("category")
-            .skip((page - 1) * perPage)
-            .limit(perPage)
-            .exec();
+    res.status(200).json({
+      error: false,
+      success: true,
+      products,
+      totalPages: Math.ceil(totalPosts / perPage),
+      page
+    });
 
-        if (!products) {
-            response.status(500).json({
-                error: true,
-                success: false
-            })
-        }
-
-        return response.status(200).json({
-            error: false,
-            success: true,
-            products: products,
-            totalPages: totalPages,
-            page: page,
-        })
-
-    } catch (error) {
-        return response.status(500).json({
-            message: error.message || error,
-            error: true,
-            success: false
-        })
-    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+      error: true,
+      success: false
+    });
+  }
 }
 
 
@@ -369,10 +361,8 @@ export async function getAllProductsByCatName(request, response) {
         let query = {
             catName: request.query.catName
         }
-        
-        if(role == "SELLER") { 
-            query.seller = token_data?.id
-        }
+        query = applyRoleFilter(query, token_data);
+
         const page = parseInt(request.query.page) || 1;
         const perPage = parseInt(request.query.perPage) || 10000;
 
@@ -423,65 +413,45 @@ export async function getAllProductsByCatName(request, response) {
 
 
 //get all products by sub category id
-export async function getAllProductsBySubCatId(request, response) {
-    try {
-        let token_data = await decoder(request)
-        let role = token_data?.user.role
-        console.log(request.params);
-        
-        let query = {
-            subCatId: request.params.id
-        }
-        
-        if(role == "SELLER") { 
-            query.seller = token_data?.id
-        }
+export async function getAllProductsBySubCatId(req, res) {
+  try {
+    const token_data = await decoder(req);
 
-        const page = parseInt(request.query.page) || 1;
-        const perPage = parseInt(request.query.perPage) || 10000;
+    let query = {
+      subCatId: req.params.id
+    };
 
+    query = applyRoleFilter(query, token_data);
 
-        const totalPosts = await ProductModel.countDocuments();
-        const totalPages = Math.ceil(totalPosts / perPage);
+    const page = parseInt(req.query.page) || 1;
+    const perPage = parseInt(req.query.perPage) || 10000;
+    const skip = (page - 1) * perPage;
 
-        if (page > totalPages) {
-            return response.status(404).json(
-                {
-                    message: "Page not found",
-                    success: false,
-                    error: true
-                }
-            );
-        }
+    const [products, totalPosts] = await Promise.all([
+      ProductModel.find(query)
+        .populate("category")
+        .skip(skip)
+        .limit(perPage),
+      ProductModel.countDocuments(query)
+    ]);
 
-        const products = await ProductModel.find(query).populate("category")
-            .skip((page - 1) * perPage)
-            .limit(perPage)
-            .exec();
+    res.status(200).json({
+      error: false,
+      success: true,
+      products,
+      totalPages: Math.ceil(totalPosts / perPage),
+      page
+    });
 
-        if (!products) {
-            response.status(500).json({
-                error: true,
-                success: false
-            })
-        }
-
-        return response.status(200).json({
-            error: false,
-            success: true,
-            products: products,
-            totalPages: totalPages,
-            page: page,
-        })
-
-    } catch (error) {
-        return response.status(500).json({
-            message: error.message || error,
-            error: true,
-            success: false
-        })
-    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+      error: true,
+      success: false
+    });
+  }
 }
+
 
 
 //get all pending products by sub category id
@@ -594,9 +564,10 @@ export const uploadVideoController = async (req, res) => {
   let localFilePath;
   try {
     const userId = req.userId;
-    const { title, description, user_id } = req.body;
+    const { title, description, user_id , role } = req.body;
     const file = req.file;
-
+    let token_data = await decoder(req)
+    let user = token_data?.user
     if (!file) {
       return res.status(400).json({
         error: true,
@@ -630,7 +601,7 @@ export const uploadVideoController = async (req, res) => {
       if (err) console.error("Failed to delete local file:", err);
     });
 
-    const video = await videoModel.create({
+    const createObject = {
       title,
       description,
       user_id,
@@ -638,7 +609,11 @@ export const uploadVideoController = async (req, res) => {
       s3_key: s3Key,
       uploaded_by: userId,
       live_link: `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`,
-    });
+    }
+    if(user.role){
+        createObject.role = user.role
+    }
+    const video = await videoModel.create(createObject);
 
     video.video_url = `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`;
 
@@ -649,7 +624,7 @@ export const uploadVideoController = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
+    console.log(error);
 
     // 🧹 cleanup if error occurs after file upload
     if (localFilePath && fs.existsSync(localFilePath)) {
@@ -723,6 +698,53 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
         })
     }
 }
+
+export const getVideoList = async (req, res) => {
+  try {
+    // Pagination params
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 5;
+    const skip = (page - 1) * limit;
+    let token_data = await decoder(req)
+    let user = token_data?.user
+    
+    
+    // Optional: role based / user based filtering
+    const filter = {};
+    // Example:
+    if (user.role !== "ADMIN") {
+      filter.user_id = user._id
+    }
+
+    // Fetch data & count in parallel
+    const [videos, total] = await Promise.all([
+      videoModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      videoModel.countDocuments(filter)
+    ]);
+
+    res.status(200).json({
+      error: false,
+      success: true,
+      data: videos,
+      page,
+      totalPages: Math.ceil(total / limit),
+      totalRecords: total,
+      message: "Videos fetched successfully"
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: true,
+      success: false,
+      message: err.message
+    });
+  }
+};
+
 
 export const deleteAdminVideo = async (req, res) => {
   try {

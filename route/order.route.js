@@ -11,7 +11,7 @@ orderRouter.post('/capture-order-paypal',auth,captureOrderPaypalController)
 orderRouter.put('/order-status/:id',auth,updateOrderStatusController)
 orderRouter.get('/count',auth,getTotalOrdersCountController)
 orderRouter.get('/sales',auth,totalSalesController)
-orderRouter.get('/users',auth,totalUsersController)
+orderRouter.post('/users',auth,totalUsersController)
 orderRouter.get('/order-list/orders',auth,getUserOrderDetailsController)
 orderRouter.delete('/deleteOrder/:id',auth,deleteOrder)
 

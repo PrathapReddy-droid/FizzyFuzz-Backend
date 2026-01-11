@@ -121,6 +121,10 @@ const userSchema = mongoose.Schema({
         type:Boolean,
         default:false
     },
+    isLiveEnabled:{
+        type:Boolean,
+        default:false
+    },
     isConfirmed:{
         type:Boolean,
         default:false
