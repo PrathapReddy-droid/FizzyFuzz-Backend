@@ -8,8 +8,8 @@ import uploadVideo from '../utils/multerController.js';
 
 const productRouter = Router();
 
-productRouter.post('/uploadImages',auth,upload.array('images'),uploadImages);
-productRouter.post('/uploadBannerImages',auth,upload.array('bannerimages'),uploadBannerImages);
+productRouter.post('/uploadImages',auth,upload.array('images',10),uploadImages);
+productRouter.post('/uploadBannerImages',auth,upload.array('bannerimages',5),uploadBannerImages);
 productRouter.post('/create',auth,createProduct);
 productRouter.get('/getAllProducts',getAllProducts);
 productRouter.get('/getAllPendingProducts/:id',getAllPendingProducts);
