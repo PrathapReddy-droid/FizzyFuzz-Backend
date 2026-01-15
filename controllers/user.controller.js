@@ -11,6 +11,7 @@ import fs from 'fs';
 import ReviewModel from '../models/reviews.model.js.js';
 import  {sendEmail} from '../utils/sendMail.js';
 import decoder from '../middlewares/decoder.js';
+import { s3 } from '../utils/awsConfig.js';
 
 cloudinary.config({
     cloud_name: process.env.cloudinary_Config_Cloud_Name,
@@ -469,79 +470,68 @@ export async function logoutController(request, response) {
 
 //image upload
 var imagesArr = [];
-export async function userAvatarController(request, response) {
-    try {
-        imagesArr = [];
+export async function userAvatarController(req, res) {
+  try {
+    const userId = req.userId;
+    const files = req.files;
 
-        const userId = request.userId;  //auth middleware
-        const image = request.files;
-
-
-        const user = await UserModel.findOne({ _id: userId });
-
-        if (!user) {
-            return response.status(500).json({
-                message: "User not found",
-                error: true,
-                success: false
-            })
-        }
-
-
-
-
-        //first remove image from cloudinary
-        const imgUrl = user.avatar;
-        console.log("useruseruser : ",user);
-        
-        const urlArr = imgUrl.split("/");
-        const avatar_image = urlArr[urlArr.length - 1];
-
-        const imageName = avatar_image.split(".")[0];
-
-        if (imageName) {
-            const res = await cloudinary.uploader.destroy(
-                imageName,
-                (error, result) => {
-                    // console.log(error, res)
-                }
-            );
-        }
-
-        const options = {
-            use_filename: true,
-            unique_filename: false,
-            overwrite: false,
-        };
-
-        for (let i = 0; i < image?.length; i++) {
-
-            const img = await cloudinary.uploader.upload(
-                image[i].path,
-                options,
-                function (error, result) {
-                    imagesArr.push(result.secure_url);
-                    fs.unlinkSync(`uploads/${request.files[i].filename}`);
-                }
-            );
-        }
-
-        user.avatar = imagesArr[0];
-        await user.save();
-
-        return response.status(200).json({
-            _id: userId,
-            avtar: imagesArr[0]
-        });
-
-    } catch (error) {
-        return response.status(500).json({
-            message: error.message || error,
-            error: true,
-            success: false
-        })
+    if (!files || !files.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No image uploaded",
+      });
     }
+
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const file = files[0];
+
+    if (!file.mimetype.startsWith("image/")) {
+      return res.status(400).json({
+        success: false,
+        message: "Only image files allowed",
+      });
+    }
+
+    /* ---------------- Upload to S3 ---------------- */
+    const s3Key = `user-avatar/${userId}-${Date.now()}-${file.originalname}`;
+
+    await s3.upload({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: s3Key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }).promise();
+
+    const avatarUrl = `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`;
+
+    /* ------------ Replace avatar in DB ------------ */
+    user.avatar = avatarUrl; // old avatar auto-removed from DB
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      _id: userId,
+      avatar: avatarUrl,
+    });
+
+  } catch (error) {
+    console.error("Avatar Upload Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || error,
+    });
+  }
 }
+
+
 
 export async function userKYCController(request, response) {
   try {

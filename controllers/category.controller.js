@@ -2,6 +2,7 @@ import CategoryModel from '../models/category.modal.js';
 
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
+import { s3 } from '../utils/awsConfig.js';
 
 
 cloudinary.config({
@@ -14,43 +15,56 @@ cloudinary.config({
 
 //image upload
 var imagesArr = [];
-export async function uploadImages(request, response) {
-    try {
-        imagesArr = [];
-
-        const image = request.files;
-
-
-        const options = {
-            use_filename: true,
-            unique_filename: false,
-            overwrite: false,
-        };
-
-        for (let i = 0; i < image?.length; i++) {
-
-            const img = await cloudinary.uploader.upload(
-                image[i].path,
-                options,
-                function (error, result) {
-                    imagesArr.push(result.secure_url);
-                    fs.unlinkSync(`uploads/${request.files[i].filename}`);
-                }
-            );
-        }
-
-        return response.status(200).json({
-            images: imagesArr
-        });
-
-    } catch (error) {
-        return response.status(500).json({
-            message: error.message || error,
-            error: true,
-            success: false
-        })
+export async function uploadImages(req, res) {
+  try {
+    if (!req.files || !req.files.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No images received",
+      });
     }
+
+    const imagesArr = [];
+
+    for (const file of req.files) {
+      if (!file.buffer) {
+        throw new Error("File buffer missing — multer memoryStorage not used");
+      }
+
+      // Optional: allow only images
+      if (!file.mimetype.startsWith("image/")) {
+        throw new Error("Only image files are allowed");
+      }
+
+      const s3Key = `category-images/${Date.now()}-${file.originalname}`;
+
+      await s3.upload({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: s3Key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }).promise();
+
+      imagesArr.push(
+        `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      images: imagesArr,
+    });
+
+  } catch (error) {
+    console.error("S3 Image Upload Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: error.message || error,
+    });
+  }
 }
+
 
 
 
@@ -59,7 +73,7 @@ export async function createCategory(request, response) {
     try {
         let category = new CategoryModel({
             name: request.body.name,
-            images: imagesArr,
+            images: request.body.images,
             parentId: request.body.parentId,
             parentCatName: request.body.parentCatName,
         });

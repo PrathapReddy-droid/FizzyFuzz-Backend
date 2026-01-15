@@ -5,7 +5,7 @@ import { createCategory, deleteCategory, getCategories, getCategoriesCount, getC
 
 const categoryRouter = Router();
 
-categoryRouter.post('/uploadImages',auth,upload.array('images'),uploadImages);
+categoryRouter.post('/uploadImages',auth,upload.array('images',5),uploadImages);
 categoryRouter.post('/create',auth,createCategory);
 categoryRouter.get('/',getCategories);
 categoryRouter.get('/get/count',getCategoriesCount);

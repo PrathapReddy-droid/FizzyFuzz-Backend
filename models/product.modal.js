@@ -97,6 +97,10 @@ variants: {
         type: String,
         default: "PENDING",
     },
+    seller_name : {
+        type: String,
+        required : true
+    },
     seller : {
         type: mongoose.Schema.Types.ObjectId,
         required: true,

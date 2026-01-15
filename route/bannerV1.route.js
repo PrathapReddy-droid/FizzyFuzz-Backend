@@ -6,7 +6,7 @@ import { removeImageFromCloudinary } from '../controllers/category.controller.js
 
 const bannerV1Router = Router();
 
-bannerV1Router.post('/uploadImages',auth,upload.array('images'),uploadImages);
+bannerV1Router.post('/uploadImages',auth,upload.array('images',5),uploadImages);
 bannerV1Router.post('/add',auth,addBanner);
 bannerV1Router.get('/',getBanners);
 bannerV1Router.get('/:id',getBanner);

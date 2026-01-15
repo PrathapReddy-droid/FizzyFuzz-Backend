@@ -124,8 +124,8 @@ export async function createProduct(request, response) {
         let product = new ProductModel({
             name: request.body.name,
             description: request.body.description,
-            images: imagesArr,
-            bannerimages: bannerImage,
+            images: request.body.images,
+            bannerimages: request.body.bannerimages,
             bannerTitleName: request.body.bannerTitleName,
             isDisplayOnHomeBanner: request.body.isDisplayOnHomeBanner,
             brand: request.body.brand,
@@ -147,6 +147,7 @@ export async function createProduct(request, response) {
             productWeight: request.body.productWeight,
             variants: request.body.variants,
             seller : request.body.seller,
+            seller_name : request.body.seller_name,
             video_url : request.body.video_url,
             shipment_days : request.body.shipment_days,
             product_pincode : request.body.product_pincode
