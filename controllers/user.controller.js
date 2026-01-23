@@ -533,57 +533,71 @@ export async function userAvatarController(req, res) {
 
 
 
-export async function userKYCController(request, response) {
+export async function userKYCController(req, res) {
   try {
-    let imagesArr = [];
+    const userId = req.userId;
+    const files = req.files;
+    const { kycType } = req.body;
 
-    const userId = request.userId;
-    const images = request.files;
-    const {kycType} = request.body
-    const user = await UserModel.findById(userId);
-
-    if (!user) {
-      return response.status(404).json({
-        message: "User not found",
-        error: true,
-        success: false
+    if (!files || !files.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No KYC document uploaded",
       });
     }
 
-    // Remove old KYC image
-    if (user.kyc_img) {
-      const imageName = user.kyc_img.split("/").pop().split(".")[0];
-      await cloudinary.uploader.destroy(imageName);
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: true,
+        message: "User not found",
+      });
     }
 
-    const options = {
-      use_filename: true,
-      unique_filename: false,
-      overwrite: true,
-    };
+    const file = files[0];
 
-    for (let i = 0; i < images.length; i++) {
-      const result = await cloudinary.uploader.upload(images[i].path, options);
-      imagesArr.push(result.secure_url);
-      fs.unlinkSync(`uploads/${images[i].filename}`);
+    if (!file.mimetype.startsWith("image/")) {
+      return res.status(400).json({
+        success: false,
+        message: "Only image files are allowed",
+      });
     }
 
-    // ✅ SAVE TO CORRECT FIELD
-    user.kyc_img = imagesArr[0];
-    user.kyc_type = kycType
+    /* -----------------------------------------
+       Upload KYC image to S3
+    ------------------------------------------ */
+    const s3Key = `kyc-documents/${userId}-${Date.now()}-${file.originalname}`;
+
+    await s3.upload({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: s3Key,
+      Body: file.buffer,        // ✅ memoryStorage buffer
+      ContentType: file.mimetype,
+    }).promise();
+
+    const kycUrl = `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`;
+
+    /* -----------------------------------------
+       Save to DB (replace old one)
+    ------------------------------------------ */
+    user.kyc_img = kycUrl;
+    user.kyc_type = kycType;
     await user.save();
 
-    return response.status(200).json({
-      error: false,
+    return res.status(200).json({
       success: true,
-      kycDocument: imagesArr[0]
+      error: false,
+      kycDocument: kycUrl,
     });
 
   } catch (error) {
-    return response.status(500).json({
-      message: error.message,
+    console.error("KYC Upload Error:", error);
+    return res.status(500).json({
+      success: false,
       error: true,
-      success: false
+      message: error.message || error,
     });
   }
 }
@@ -804,7 +818,7 @@ export async function verifyForgotPasswordOtp(request, response) {
 //reset password
 export async function resetpassword(request, response) {
     try {
-        const { email, oldPassword, newPassword, confirmPassword } = request.body;
+        const { email, newPassword, confirmPassword } = request.body;
         if (!email || !newPassword || !confirmPassword) {
             return response.status(400).json({
                 error: true,
@@ -823,16 +837,16 @@ export async function resetpassword(request, response) {
         }
 
 
-        if (user?.signUpWithGoogle === false) {
-            const checkPassword = await bcryptjs.compare(oldPassword, user.password);
-            if (!checkPassword) {
-                return response.status(400).json({
-                    message: "your old password is wrong",
-                    error: true,
-                    success: false,
-                })
-            }
-        }
+        // if (user?.signUpWithGoogle === false) {
+        //     const checkPassword = await bcryptjs.compare(oldPassword, user.password);
+        //     if (!checkPassword) {
+        //         return response.status(400).json({
+        //             message: "your old password is wrong",
+        //             error: true,
+        //             success: false,
+        //         })
+        //     }
+        // }
 
 
         if (newPassword !== confirmPassword) {

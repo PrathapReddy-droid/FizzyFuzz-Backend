@@ -11,7 +11,7 @@ userRouter.post('/login',loginUserController)
 userRouter.post('/authWithGoogle',authWithGoogle)
 userRouter.get('/logout',logoutController);
 userRouter.put('/user-avatar',auth,upload.array('avatar'),userAvatarController);
-userRouter.put('/upload-kyc',auth,upload.array('kycDocument'),userKYCController);
+userRouter.put('/upload-kyc',auth,upload.array('kycDocument',1),userKYCController);
 userRouter.delete('/deteleImage',auth,removeImageFromCloudinary);
 userRouter.post('/toggleUserLive',auth,toggleLiveController);
 userRouter.put('/:id',auth,updateUserDetails);

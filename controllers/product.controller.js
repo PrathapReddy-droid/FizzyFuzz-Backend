@@ -723,18 +723,20 @@ export async function getAllProductsByThirdLavelCatId(request, response) {
 export const getVideoList = async (req, res) => {
   try {
     // Pagination params
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 5;
+    const page = parseInt(req?.query?.page, 10) || 1;
+    const id = req.query.id
+    const limit = parseInt(req?.query?.limit, 10) || 5;
     const skip = (page - 1) * limit;
     let token_data = await decoder(req)
     let user = token_data?.user
     
+    console.log(id);
     
     // Optional: role based / user based filtering
     const filter = {};
     // Example:
     if (user.role !== "ADMIN") {
-      filter.user_id = user._id
+      filter.user_id = id
     }
 
     // Fetch data & count in parallel
