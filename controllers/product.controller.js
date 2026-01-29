@@ -735,8 +735,10 @@ export const getVideoList = async (req, res) => {
     // Optional: role based / user based filtering
     const filter = {};
     // Example:
-    if (user.role !== "ADMIN") {
+    if (user.role == "SELLER") {
       filter.user_id = id
+    }else if(user.role == "USER"){
+        filter.status = "Approved"
     }
 
     // Fetch data & count in parallel
