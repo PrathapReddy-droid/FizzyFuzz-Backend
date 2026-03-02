@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
-import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController, getAllPendingProducts, approveProducts, getPendingProductsBySubCatId, uploadVideoController, deleteAdminVideo, getAllAdminVideo, getVideoList} from '../controllers/product.controller.js';
+import {createProduct, createProductRAMS, deleteMultipleProduct, deleteProduct, deleteProductRAMS, getAllFeaturedProducts, getAllProducts, getAllProductsByCatId, getAllProductsByCatName, getAllProductsByPrice, getAllProductsByRating, getAllProductsBySubCatId, getAllProductsBySubCatName, getAllProductsByThirdLavelCatId, getProduct, getProductRams, getProductsCount, updateProduct, updateProductRam, uploadImages, getProductRamsById, createProductWEIGHT, deleteProductWEIGHT, updateProductWeight, getProductWeight, getProductWeightById, createProductSize, deleteProductSize, updateProductSize, getProductSize, getProductSizeById, uploadBannerImages, getAllProductsBanners, filters, sortBy, searchProductController, getAllPendingProducts, approveProducts, getPendingProductsBySubCatId, uploadVideoController, deleteAdminVideo, getAllAdminVideo, getVideoList, checkProductDeliveryTime} from '../controllers/product.controller.js';
 
 import {removeImageFromCloudinary} from '../controllers/category.controller.js';
 import uploadVideo from '../utils/multerController.js';
@@ -12,6 +12,7 @@ productRouter.post('/uploadImages',auth,upload.array('images',10),uploadImages);
 productRouter.post('/uploadBannerImages',auth,upload.array('bannerimages',5),uploadBannerImages);
 productRouter.post('/create',auth,createProduct);
 productRouter.get('/getAllProducts',getAllProducts);
+productRouter.post('/getDeliverytime',checkProductDeliveryTime);
 productRouter.get('/getAllPendingProducts/:id',getAllPendingProducts);
 productRouter.post('/productApproval',auth,approveProducts);
 productRouter.get('/getAllProductsBanners',getAllProductsBanners);

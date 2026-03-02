@@ -153,6 +153,10 @@ variants: {
         type :String, 
         required : true
     },
+    pickup_location : {
+        type :String, 
+        required : true
+    },
     isDisplayOnHomeBanner: {
         type: Boolean,
         default: false,

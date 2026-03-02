@@ -280,3 +280,79 @@ export const createPickupLocation = async (pickupData) => {
     };
   }
 };
+
+
+export const getDeliveryEstimate = async ({
+  pickupPincode,
+  deliveryPincode,
+  weight = "2.5",
+  cod = true
+}) => {
+  try {
+    const {token} = await getShiprocketToken();
+    console.log("token : ",token);
+    
+    const payload = {
+        pickup_postcode : pickupPincode,
+        delivery_postcode: deliveryPincode,
+        weight: weight,
+        cod: cod
+      }
+      console.log(payload);
+
+    const response = await axios({
+      method: "GET",
+      url: "https://apiv2.shiprocket.in/v1/external/courier/serviceability/",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      data: payload
+    });
+
+    const couriers =
+      response?.data?.data?.available_courier_companies || [];
+
+    if (!couriers.length) {
+      return {
+        success: false,
+        message: "No courier available"
+      };
+    }
+
+    // ✅ Sort by fastest delivery
+    couriers.sort(
+      (a, b) => a.estimated_delivery_days - b.estimated_delivery_days
+    );
+
+    const bestCourier = couriers[0];
+
+    // 📅 Calculate estimated delivery date
+    const today = new Date();
+    const estimatedDays = bestCourier.estimated_delivery_days || 0;
+
+    const deliveryDate = new Date();
+    deliveryDate.setDate(today.getDate() + estimatedDays);
+
+    return {
+      success: true,
+      courier_name: bestCourier.courier_name,
+      estimated_days: estimatedDays,
+      estimated_delivery_date: deliveryDate.toISOString().split("T")[0],
+      freight_charge: bestCourier.freight_charge,
+      cod_charges: bestCourier.cod_charges
+    };
+
+  } catch (error) {
+    console.error(
+      "Serviceability Error:",
+      error?.response?.data || error.message
+    );
+
+    return {
+      success: false,
+      message:
+        error?.response?.data?.message || "Shiprocket API failed"
+    };
+  }
+};

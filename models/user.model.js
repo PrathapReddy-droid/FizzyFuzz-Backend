@@ -125,6 +125,18 @@ const userSchema = mongoose.Schema({
         type:Boolean,
         default:false
     },
+    city:{
+        type:String,
+        default:false
+    },
+    state:{
+        type:String,
+        default:false
+    },
+    pickup_location:{
+        type:String,
+        default:false
+    },
     isConfirmed:{
         type:Boolean,
         default:false

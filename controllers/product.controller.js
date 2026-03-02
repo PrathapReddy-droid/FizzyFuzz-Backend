@@ -9,6 +9,8 @@ import { request } from 'http';
 import decoder from '../middlewares/decoder.js';
 import { s3 } from '../utils/awsConfig.js';
 import videoModel from '../models/video.model.js';
+import { getDeliveryEstimate } from '../utils/shiprocketService.js';
+import UserModel from '../models/user.model.js';
 
 
 cloudinary.config({
@@ -120,6 +122,8 @@ export async function uploadBannerImages(req, res) {
 //create product
 export async function createProduct(request, response) {
     try {
+        
+        const seller = await UserModel.findById(request.body.seller)
 
         let product = new ProductModel({
             name: request.body.name,
@@ -148,6 +152,8 @@ export async function createProduct(request, response) {
             variants: request.body.variants,
             seller : request.body.seller,
             seller_name : request.body.seller_name,
+            pickup_location : seller.pickup_location,
+            product_pincode : seller.pin_number ,
             video_url : request.body.video_url,
             shipment_days : request.body.shipment_days,
             product_pincode : request.body.product_pincode
@@ -1945,3 +1951,68 @@ export async function searchProductController(request, response) {
         })
     }
 }
+
+export const checkProductDeliveryTime = async (req, res) => {
+  try {
+    const { productId, deliveryPincode } = req.body;
+
+    if (!productId || !deliveryPincode) {
+      return res.status(400).json({
+        success: false,
+        message: "productId and deliveryPincode are required"
+      });
+    }
+
+    // 🔎 1️⃣ Get Product
+    const product = await ProductModel.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    console.log(product);
+    
+    // 🔎 2️⃣ Get Seller (for pickup pincode)
+    const seller = await UserModel.findById(product.seller);
+    console.log(seller);
+    
+    if (!seller || !seller.pin_number) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller pickup pincode not configured"
+      });
+    }
+
+    // ⚖️ 3️⃣ Get product weight (default 1kg if missing)
+    const weight = product.weight || "2.5";
+
+    // 🚀 4️⃣ Call Shiprocket serviceability
+    const result = await getDeliveryEstimate({
+      pickupPincode: seller.pin_number,
+      deliveryPincode,
+      weight,
+      cod: true
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json({
+      success: true,
+      product: product.name,
+      courier_name: result.courier_name,
+      estimated_days: result.estimated_days,
+      estimated_delivery_date: result.estimated_delivery_date,
+      freight_charge: result.freight_charge
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || error
+    });
+  }
+};

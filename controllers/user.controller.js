@@ -674,8 +674,10 @@ export async function updateUserDetails(request, response) {
         if(req?.state) updater.state = state 
         updater.country = req?.country || "India"
         if(req?.pickup_location) updater.pickup_location = pickup_location 
-        if(req?.pickup_location&&req?.country&&req?.city&&req?.state&&req?.pinCode&&email&&mobile&&name){
-            let response = await createPickupLocation({pickup_location,country,city,state,pin_code : pinCode,email,phone : mobile,name})
+        if(address&&req?.pickup_location&&req?.country&&req?.city&&req?.state&&req?.pinCode&&email&&mobile&&name){
+            let response = await createPickupLocation({address,pickup_location,country,city,state,pin_code : pinCode,email,phone : mobile,name})
+            console.log("warehouse created : ",response);
+            
         }
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
