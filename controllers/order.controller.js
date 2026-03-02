@@ -5,6 +5,7 @@ import paypal from "@paypal/checkout-server-sdk";
 import OrderConfirmationEmail from "../utils/orderEmailTemplate.js";
 import sendEmailFun from "../config/sendEmail.js";
 import decoder from "../middlewares/decoder.js";
+import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId } from "../utils/shiprocketService.js";
 
 export const createOrderController = async (request, response) => {
   try {
@@ -20,7 +21,7 @@ export const createOrderController = async (request, response) => {
     const sellersSet = new Set();
     const enrichedProducts = [];
 
-    // 🔁 Loop through products
+    // 🔁 Product loop
     for (const item of products) {
       const product = await ProductModel.findById(item.productId);
 
@@ -31,43 +32,38 @@ export const createOrderController = async (request, response) => {
         });
       }
 
-      // ✅ Add seller to each product object
       enrichedProducts.push({
         ...item,
-        seller: product.seller   // 👈 injected seller
+        seller: product.seller
       });
 
-      // ✅ Collect sellers list
       sellersSet.add(product.seller.toString());
 
-      // ✅ Update product stock & sale
-      await ProductModel.findByIdAndUpdate(
-        product._id,
-        {
-          $inc: {
-            countInStock: -item.quantity,
-            sale: item.quantity
-          }
-        },
-        { new: true }
-      );
+      await ProductModel.findByIdAndUpdate(product._id, {
+        $inc: {
+          countInStock: -item.quantity,
+          sale: item.quantity
+        }
+      });
     }
 
-    // ✅ Create order with sellers_list
+    // 🔥 Generate Order ID
+    const orderId = await generateOrderId();
+
     const order = new OrderModel({
+      orderId,
       userId,
       products: enrichedProducts,
-      sellers_list: Array.from(sellersSet), // 👈 main sellers list
+      sellers_list: Array.from(sellersSet),
       paymentId: request.body.paymentId,
       payment_status: request.body.payment_status,
       delivery_address: request.body.delivery_address,
-      totalAmt: request.body.totalAmt,
-      date: request.body.date
+      totalAmt: request.body.totalAmt
     });
 
     const savedOrder = await order.save();
 
-    // 📧 Send order confirmation
+    // 📧 Send confirmation email
     const user = await UserModel.findById(userId);
 
     await sendEmailFun({
@@ -76,9 +72,48 @@ export const createOrderController = async (request, response) => {
       html: OrderConfirmationEmail(user.name, savedOrder)
     });
 
+    // ===================================================
+    // 🚀 CALL SHIPROCKET AFTER ORDER CREATED
+    // ===================================================
+
+    try {
+
+      const address = await AddressModel.findOne({userId});
+
+      const shiprocketRes = await createShiprocketOrder({
+        order: savedOrder,
+        address,
+        user
+      });
+
+      if (shiprocketRes.success) {
+
+        const sr = shiprocketRes.data;
+
+        await OrderModel.findByIdAndUpdate(savedOrder._id, {
+          shipment: {
+            shiprocket_order_id: sr?.order_id,
+            shipment_id: sr?.shipment_id,
+            status: "CONFIRMED",
+            raw_response: sr
+          }
+        });
+
+      } else {
+        console.error("Shiprocket Error:", shiprocketRes.message);
+
+        await OrderModel.findByIdAndUpdate(savedOrder._id, {
+          "shipment.status": "CREATED"
+        });
+      }
+
+    } catch (shipErr) {
+      console.error("Shiprocket Integration Failed:", shipErr.message);
+    }
+
     return response.status(200).json({
       success: true,
-      message: "Order Placed",
+      message: "Order Placed Successfully",
       order: savedOrder
     });
 
@@ -90,6 +125,67 @@ export const createOrderController = async (request, response) => {
   }
 };
 
+export const cancelOrderController = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "orderId is required"
+      });
+    }
+
+    // 🔍 Find order
+    const order = await OrderModel.findOne({ orderId });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // ❗ Check if shipment exists
+    if (!order?.shipment?.shiprocket_order_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Shipment not created for this order"
+      });
+    }
+
+    // 🚀 Call Shiprocket cancel API
+    const cancelRes = await cancelShiprocketOrder(
+      order.shipment.shiprocket_order_id
+    );
+
+    if (!cancelRes.success) {
+      return res.status(400).json({
+        success: false,
+        message: cancelRes.message,
+        error: cancelRes.error
+      });
+    }
+
+    // ✅ Update DB
+    await OrderModel.findByIdAndUpdate(order._id, {
+      order_status: "cancelled",
+      "shipment.status": "CANCELLED"
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      data: cancelRes.data
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || error
+    });
+  }
+};
 
 export async function getOrderDetailsController(request, response) {
     try {
@@ -208,7 +304,7 @@ export const createOrderPaypalController = async (request, response) => {
             intent: "CAPTURE",
             purchase_units: [{
                 amount: {
-                    currency_code: 'USD',
+                    currency_code: 'INR',
                     value: request.query.totalAmount
                 }
             }]

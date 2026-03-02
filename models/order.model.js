@@ -1,35 +1,51 @@
-import mongoose from "mongoose";
-
 const orderSchema = new mongoose.Schema({
+    orderId: {
+        type: String,
+        unique: true,
+        required: true
+    },
     userId: {
         type: mongoose.Schema.ObjectId,
         ref: 'User'
     },
     sellers_list: [
-    {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-    }],
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    ],
+    shipment: {
+        shiprocket_order_id: { type: String },
+        shipment_id: { type: String },
+        awb_code: { type: String },
+
+        status: {
+            type: String,
+            enum: [
+                "CREATED",
+                "CONFIRMED",
+                "PICKED",
+                "SHIPPED",
+                "IN_TRANSIT",
+                "DELIVERED",
+                "CANCELLED"
+            ],
+            default: "CREATED"
+        },
+
+        courier_name: { type: String },
+        tracking_url: { type: String },
+
+        raw_response: { type: Object } // store full response (very useful 🔥)
+    },
     products: [
         {
-            productId: {
-                type: String
-            },
-            productTitle: {
-                type: String
-            },
-            quantity: {
-                type: Number
-            },
-            price: {
-                type: Number
-            },
-            image: {
-                type: String
-            },
-            subTotal: {
-                type: Number
-            },
+            productId: String,
+            productTitle: String,
+            quantity: Number,
+            price: Number,
+            image: String,
+            subTotal: Number,
             seller: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: "User"
@@ -38,33 +54,16 @@ const orderSchema = new mongoose.Schema({
                 type: String,
                 enum: ['PENDING', "CONFIRMED","IN-TRANSIT" ,"DELIVERED"],
                 default: "PENDING"
-            }    
+            }
         }
     ],
-    paymentId: {
-        type: String,
-        default: ""
-    },
-    payment_status : {
-        type : String,
-        default : ""
-    },
-    order_status : {
-        type : String,
-        default : "confirm"
-    },
+    paymentId: { type: String, default: "" },
+    payment_status : { type : String, default : "" },
+    order_status : { type : String, default : "confirm" },
     delivery_address: {
         type: mongoose.Schema.ObjectId,
         ref: 'address'
     },
-    totalAmt: {
-        type: Number,
-        default: 0
-    }
-}, {
-    timestamps: true
-})
+    totalAmt: { type: Number, default: 0 }
 
-const OrderModel = mongoose.model('order', orderSchema)
-
-export default OrderModel
+}, { timestamps: true });

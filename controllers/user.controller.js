@@ -631,7 +631,26 @@ export async function updateUserDetails(request, response) {
     try {
         const userId = request.userId 
         let req = request.body
-        const { name, email, mobile, password , role,panNumber,pinCode ,aadhaarNumber , gst , business, ifsc, bankAccount , address } = request.body;
+        const { 
+            
+            name, 
+            email, 
+            mobile, 
+            password , 
+            role,
+            panNumber,
+            pinCode ,
+            aadhaarNumber , 
+            gst , 
+            business, 
+            ifsc, 
+            bankAccount , 
+            address,
+            city,
+            state,
+            country,
+            pickup_location
+        } = request.body;
 
         const userExist = await UserModel.findById(userId);
         if (!userExist)
@@ -650,6 +669,10 @@ export async function updateUserDetails(request, response) {
         if(req?.aadhaarNumber) updater.aadhaar_number = aadhaarNumber
         if(req?.panNumber) updater.pan_number = panNumber 
         if(req?.pinCode) updater.pin_number = pinCode 
+        if(req?.city) updater.city = city 
+        if(req?.state) updater.state = state 
+        if(req?.country) updater.country = country 
+        if(req?.pickup_location) updater.pickup_location = pickup_location 
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
             updater,
