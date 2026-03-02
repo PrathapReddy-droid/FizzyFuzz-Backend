@@ -60,6 +60,7 @@ const orderSchema = new mongoose.Schema({
         }
     ],
     paymentId: { type: String, default: "" },
+    orderId:{type:String, default:""},
     payment_status : { type : String, default : "" },
     order_status : { type : String, default : "confirm" },
     delivery_address: {
