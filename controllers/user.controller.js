@@ -12,6 +12,7 @@ import ReviewModel from '../models/reviews.model.js.js';
 import  {sendEmail} from '../utils/sendMail.js';
 import decoder from '../middlewares/decoder.js';
 import { s3 } from '../utils/awsConfig.js';
+import { createPickupLocation } from '../utils/shiprocketService.js';
 
 cloudinary.config({
     cloud_name: process.env.cloudinary_Config_Cloud_Name,
@@ -59,7 +60,7 @@ export async function registerUserController(request, response) {
         user = await UserModel.findOne({ email: email , isConfirmed : false });
 
         if (user) {
-            await sendMail(user.otp,user.email,user.name)
+            await sendEmail(user.otp,user.email,user.name)
             const user_token = jwt.sign(
                     { email: user.email, id: user._id },
                     process.env.JSON_WEB_TOKEN_SECRET_KEY
@@ -671,8 +672,11 @@ export async function updateUserDetails(request, response) {
         if(req?.pinCode) updater.pin_number = pinCode 
         if(req?.city) updater.city = city 
         if(req?.state) updater.state = state 
-        if(req?.country) updater.country = country 
+        updater.country = req?.country || "India"
         if(req?.pickup_location) updater.pickup_location = pickup_location 
+        if(req?.pickup_location&&req?.country&&req?.city&&req?.state&&req?.pinCode&&email&&mobile&&name){
+            let response = await createPickupLocation({pickup_location,country,city,state,pin_code : pinCode,email,phone : mobile,name})
+        }
         const updateUser = await UserModel.findByIdAndUpdate(
             userId,
             updater,

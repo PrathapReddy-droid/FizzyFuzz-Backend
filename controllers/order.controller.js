@@ -6,6 +6,7 @@ import OrderConfirmationEmail from "../utils/orderEmailTemplate.js";
 import sendEmailFun from "../config/sendEmail.js";
 import decoder from "../middlewares/decoder.js";
 import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId } from "../utils/shiprocketService.js";
+import AddressModel from "../models/address.model.js";
 
 export const createOrderController = async (request, response) => {
   try {
@@ -17,7 +18,7 @@ export const createOrderController = async (request, response) => {
         message: "Products are required"
       });
     }
-
+    
     const sellersSet = new Set();
     const enrichedProducts = [];
 
@@ -46,10 +47,9 @@ export const createOrderController = async (request, response) => {
         }
       });
     }
-
     // 🔥 Generate Order ID
     const orderId = await generateOrderId();
-
+    console.log(3, request.body);
     const order = new OrderModel({
       orderId,
       userId,
@@ -62,15 +62,16 @@ export const createOrderController = async (request, response) => {
     });
 
     const savedOrder = await order.save();
-
     // 📧 Send confirmation email
     const user = await UserModel.findById(userId);
 
+    console.log(user);
     await sendEmailFun({
       sendTo: [user.email],
       subject: "Order Confirmation",
       html: OrderConfirmationEmail(user.name, savedOrder)
     });
+    
 
     // ===================================================
     // 🚀 CALL SHIPROCKET AFTER ORDER CREATED
@@ -79,7 +80,7 @@ export const createOrderController = async (request, response) => {
     try {
 
       const address = await AddressModel.findOne({userId});
-
+      console.log(address);
       const shiprocketRes = await createShiprocketOrder({
         order: savedOrder,
         address,

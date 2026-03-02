@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 const orderSchema = new mongoose.Schema({
     orderId: {
         type: String,
@@ -61,9 +63,14 @@ const orderSchema = new mongoose.Schema({
     payment_status : { type : String, default : "" },
     order_status : { type : String, default : "confirm" },
     delivery_address: {
-        type: mongoose.Schema.ObjectId,
+        type: Object,
         ref: 'address'
     },
     totalAmt: { type: Number, default: 0 }
 
 }, { timestamps: true });
+
+
+const OrderModel = mongoose.model('orders', orderSchema)
+
+export default OrderModel

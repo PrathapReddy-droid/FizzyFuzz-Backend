@@ -1,5 +1,4 @@
-import { generateShiprocketToken } from "../utils/shiprocketService";
-
+import { generateShiprocketToken } from "../utils/shiprocketService.js";
 let cachedToken = null;
 let tokenExpiry = null;
 
@@ -15,7 +14,7 @@ export const getShiprocketToken = async () => {
     cachedToken = newToken.token;
 
     // ⏳ Set expiry (Shiprocket JWT usually long-lived)
-    tokenExpiry = Date.now() + (8 * 24 * 60 * 60 * 1000);
+    tokenExpiry = Date.now() + ( 60 * 60 * 1000);
 
     return { success: true, token: cachedToken };
   }

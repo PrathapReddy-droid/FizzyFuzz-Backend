@@ -1,33 +1,39 @@
-import http from 'http';
-import nodemailer from 'nodemailer';
+import { SendMailClient } from "zeptomail";
+import dotenv from "dotenv";
 
-// Configure the SMTP transporter
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // e.g., 'smtp.gmail.com' for Gmail
-  port: 465, // or 465 for secure
-  secure: true, // true for port 465, false for other ports
-  auth: {
-    user: process.env.EMAIL, // your SMTP username
-    pass: process.env.EMAIL_PASS,    // your SMTP password
-  },
-});
+dotenv.config();
 
-// Function to send email
-async function sendEmail(to, subject, text, html) {
+const url = "https://api.zeptomail.in/v1.1/email";
+const token = process.env.ZOHOTOKEN; // ✅ move token to env (IMPORTANT)
+
+const client = new SendMailClient({ url, token });
+
+/**
+ * Generic email sender (Reusable)
+ */
+export async function sendEmail({ to, name, subject, html }) {
   try {
-   
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL, // sender address
-      to, // list of receivers
-      subject, // Subject line
-      text, // plain text body
-      html, // html body
+    const response = await client.sendMail({
+      from: {
+        address: "noreply@fizzyfuzz.in",
+        name: "FizzyFuzz"
+      },
+      to: [
+        {
+          email_address: {
+            address: to,
+            name: name
+          }
+        }
+      ],
+      subject: subject,
+      htmlbody: html
     });
-    return { success: true, messageId: info.messageId };
+
+    return { success: true, data: response };
+
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error("ZeptoMail Error:", error);
     return { success: false, error: error.message };
   }
 }
-
-export {sendEmail};

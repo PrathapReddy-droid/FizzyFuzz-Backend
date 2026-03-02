@@ -1,6 +1,6 @@
 import axios from "axios";
-import CounterModel from "../models/counter.model";
-import { getShiprocketToken } from "../middlewares/shipmentAuth";
+import CounterModel from "../models/counter.model.js";
+import { getShiprocketToken } from "../middlewares/shipmentAuth.js";
 
 export const generateOrderId = async () => {
   const today = new Date();
@@ -51,7 +51,8 @@ export const generateShiprocketToken = async () => {
         data: response.data
       };
     }
-
+    console.log("generateShiprocketToken :");
+    
     // ❌ Unexpected structure
     return {
       success: false,
@@ -59,7 +60,7 @@ export const generateShiprocketToken = async () => {
     };
 
   } catch (error) {
-
+    
     // ❌ Shiprocket validation error (422 etc)
     if (error.response) {
       return {
@@ -128,6 +129,8 @@ export const createShiprocketOrder = async ({ order, address, user }) => {
       height: 20,
       weight: 2.5
     };
+    console.log("payload : ",payload);
+    
 
     const response = await axios.post(
       "https://apiv2.shiprocket.in/v1/external/orders/create/adhoc",
@@ -146,7 +149,7 @@ export const createShiprocketOrder = async ({ order, address, user }) => {
     };
 
   } catch (error) {
-
+    
     if (error.response) {
       return {
         success: false,
@@ -235,9 +238,9 @@ export const createPickupLocation = async (pickupData) => {
       pickup_location: pickupData.pickup_location, // 👈 UNIQUE NAME
       name: pickupData.name,
       email: pickupData.email,
-      phone: String(pickupData.phone),
+      phone: pickupData.phone,
       address: pickupData.address,
-      address_2: pickupData.address_2 || "",
+      address_2:  "",
       city: pickupData.city.trim(),
       state: pickupData.state.trim(),
       country: pickupData.country || "India",
@@ -277,4 +280,3 @@ export const createPickupLocation = async (pickupData) => {
     };
   }
 };
-
