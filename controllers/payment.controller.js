@@ -1,24 +1,27 @@
-import crypto from "crypto";
-import OrderModel from "../models/order.model.js";
+// controllers/payment.controller.js
+
 import razorpay from "../utils/razorpay.js";
-import { createShiprocketOrder } from "../utils/shiprocketService.js";
+import OrderModel from "../models/order.model.js";
+import crypto from "crypto";
+
 
 export const createRazorpayOrder = async (req, res) => {
-    try {
+                console.log(req.body,"=================>>>")
+
 
         const { paymentId } = req.body;
 
-        const order = await OrderModel.findById(paymentId);
+ const order = await OrderModel.findOne({ paymentId: paymentId });
+        console.log(order)
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
 
         const razorpayOrder = await razorpay.orders.create({
-            amount: order.totalAmt * 100, // paise
+            amount: 1 * 100, // paise
             currency: "INR",
-            receipt: order._id.toString()
-        });
+            receipt: "pin12666"       });
         console.log(razorpayOrder,"==========================>>>>")
 
         // Save razorpay order id
@@ -31,10 +34,10 @@ export const createRazorpayOrder = async (req, res) => {
             order: razorpayOrder
         });
 
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+   
 };
+
+
 
 
 export const razorpayWebhook = async (req, res) => {
@@ -53,7 +56,7 @@ export const razorpayWebhook = async (req, res) => {
             return res.status(400).json({ message: "Invalid signature" });
         }
 
-        const event = req.body.event;
+        const event = req.body;
 
         if (event === "payment.captured") {
 

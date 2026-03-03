@@ -353,7 +353,7 @@ export async function authWithGoogle(request, response) {
 
 export async function loginUserController(request, response) {
     try {
-        const { email, password , role } = request.body;
+        let { email, password , role } = request.body;
         console.log(role);
         
         const user = await UserModel.findOne({ email: email });
