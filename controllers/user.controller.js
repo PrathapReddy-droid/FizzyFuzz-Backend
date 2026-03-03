@@ -353,10 +353,13 @@ export async function authWithGoogle(request, response) {
 
 export async function loginUserController(request, response) {
     try {
-        const { email, password } = request.body;
-
+        const { email, password , role } = request.body;
+        console.log(role);
+        
         const user = await UserModel.findOne({ email: email });
-
+        if(!role) role = "USER"
+        console.log(user);
+        
         if (!user) {
             return response.status(400).json({
                 message: "User not register",
@@ -372,7 +375,13 @@ export async function loginUserController(request, response) {
                 success: false
             })
         }
-
+        if (user.role.toUpperCase()!==role){
+            return response.status(400).json({
+                message: "user is authorised to login",
+                error: true,
+                success: false
+            })
+        }
         if (user.verify_email !== true) {
             return response.status(400).json({
                 message: "Your Email is not verify yet please verify your email first",
@@ -429,7 +438,6 @@ export async function loginUserController(request, response) {
             success: false
         })
     }
-
 }
 
 
