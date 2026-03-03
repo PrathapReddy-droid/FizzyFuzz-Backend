@@ -1,7 +1,7 @@
-// controllers/payment.controller.js
-
-import razorpay from "../utils/razorpay.js";
+import crypto from "crypto";
 import OrderModel from "../models/order.model.js";
+import razorpay from "../utils/razorpay.js";
+import { createShiprocketOrder } from "../utils/shiprocketService.js";
 
 export const createRazorpayOrder = async (req, res) => {
     try {
@@ -36,10 +36,6 @@ export const createRazorpayOrder = async (req, res) => {
     }
 };
 
-
-import crypto from "crypto";
-import OrderModel from "../models/order.model.js";
-import { createShiprocketOrder } from "./shiprocket.controller.js";
 
 export const razorpayWebhook = async (req, res) => {
     try {

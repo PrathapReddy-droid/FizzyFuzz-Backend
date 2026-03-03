@@ -25,7 +25,7 @@ const app = express();
 const allowedOrigins = [
     "http://localhost:5173",
     "https://admin.fizzyfuzz.in",
-    "https://seller.fizzyfuzz.in",
+    "https://seller.fizzyfuzz.in"
 ];
 app.use(
     cors({
