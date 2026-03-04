@@ -42,6 +42,8 @@ export const createRazorpayOrder = async (req, res) => {
 
 export const razorpayWebhook = async (req, res) => {
     try {
+        console.log(req,"------------------------------req")
+        console.log(res,"--------------------------------res")
 
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
