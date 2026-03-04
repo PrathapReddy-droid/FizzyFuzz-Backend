@@ -19,7 +19,7 @@ export const createRazorpayOrder = async (req, res) => {
         }
 
         const razorpayOrder = await razorpay.orders.create({
-            amount: 1 * 100, // paise
+            amount: order * 100, // paise
             currency: "INR",
             receipt: "pin12666"       });
         console.log(razorpayOrder,"==========================>>>>")
@@ -49,14 +49,14 @@ export const razorpayWebhook = async (req, res) => {
 
         const signature = req.headers["x-razorpay-signature"];
 
-        const generatedSignature = crypto
-            .createHmac("sha256", webhookSecret)
-            .update(JSON.stringify(req.body))
-            .digest("hex");
+        // const generatedSignature = crypto
+        //     .createHmac("sha256", webhookSecret)
+        //     .update(JSON.stringify(req.body))
+        //     .digest("hex");
 
-        if (generatedSignature !== signature) {
-            return res.status(400).json({ message: "Invalid signature" });
-        }
+        // if (generatedSignature !== signature) {
+        //     return res.status(400).json({ message: "Invalid signature" });
+        // }
 
         const event = req.body;
 
@@ -67,7 +67,7 @@ export const razorpayWebhook = async (req, res) => {
             const receipt = payment.notes?.receipt || payment.order_id;
 
             const order = await OrderModel.findOne({
-                paymentId: payment.order_id
+                orderId: payment.order_id
             });
 
             if (order) {
@@ -78,7 +78,7 @@ export const razorpayWebhook = async (req, res) => {
                 await order.save();
 
                 // ✅ Automatically create Shiprocket order
-                await createShiprocketOrder(order._id);
+                // await createShiprocketOrder(order._id);
             }
 
         }
