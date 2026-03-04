@@ -3,6 +3,9 @@
 import razorpay from "../utils/razorpay.js";
 import OrderModel from "../models/order.model.js";
 import crypto from "crypto";
+import { createShiprocketOrder } from "../utils/shiprocketService.js";
+import ProductModel from "../models/product.modal.js";
+import UserModel from "../models/user.model.js";
 
 
 export const createRazorpayOrder = async (req, res) => {
@@ -19,9 +22,9 @@ export const createRazorpayOrder = async (req, res) => {
         }
 
         const razorpayOrder = await razorpay.orders.create({
-            amount: order * 100, // paise
+            amount: order.totalAmt * 100, // paise
             currency: "INR",
-            receipt: "pin12666"       });
+            receipt: order.orderId       });
         console.log(razorpayOrder,"==========================>>>>")
 
         // Save razorpay order id
@@ -76,7 +79,56 @@ export const razorpayWebhook = async (req, res) => {
                 order.paymentId = payment.id;
 
                 await order.save();
+                const products = order.products
+                const address = await AddressModel.findOne({userId:order.userId});
+            try {
+                for (const item of products) {
+                    const user = await UserModel.findById(order.userId);
+                    const product = await ProductModel.findById(item.productId);
+                    const pickup = await UserModel.findById(product.seller);
+                    const shiprocketRes = await createShiprocketOrder({
+                        pickup,
+                        product,
+                        order,
+                        address,
+                        user
+                    });
 
+                if (shiprocketRes.success) {
+                    const sr = shiprocketRes.data;
+
+                    await OrderModel.findByIdAndUpdate(
+                            order._id,
+                            {
+                                $push: {
+                                shipment: {
+                                    shiprocket_order_id: sr?.order_id,
+                                    shipment_id: sr?.shipment_id,
+                                    status: "CONFIRMED",
+                                    raw_response: sr
+                                }
+                                }
+                            }
+                            );
+
+                    } else {
+                        console.error("Shiprocket Error:", shiprocketRes.message);
+                        await OrderModel.findByIdAndUpdate(order._id, {
+                            "mischief": "something went wrong in shipment"
+                        });
+                    }
+                    await ProductModel.findByIdAndUpdate(product._id, {
+                        $inc: {
+                        countInStock: -item.quantity,
+                        sale: item.quantity
+                        }
+                    });
+                }
+                
+
+                } catch (shipErr) {
+                    console.error("Shiprocket Integration Failed:", shipErr.message);
+                }
                 // ✅ Automatically create Shiprocket order
                 // await createShiprocketOrder(order._id);
             }

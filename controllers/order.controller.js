@@ -77,40 +77,7 @@ export const createOrderController = async (request, response) => {
     // 🚀 CALL SHIPROCKET AFTER ORDER CREATED
     // ===================================================
 
-    try {
 
-      const address = await AddressModel.findOne({userId});
-      console.log(address);
-      const shiprocketRes = await createShiprocketOrder({
-        order: savedOrder,
-        address,
-        user
-      });
-
-      if (shiprocketRes.success) {
-
-        const sr = shiprocketRes.data;
-
-        await OrderModel.findByIdAndUpdate(savedOrder._id, {
-          shipment: {
-            shiprocket_order_id: sr?.order_id,
-            shipment_id: sr?.shipment_id,
-            status: "CONFIRMED",
-            raw_response: sr
-          }
-        });
-
-      } else {
-        console.error("Shiprocket Error:", shiprocketRes.message);
-
-        await OrderModel.findByIdAndUpdate(savedOrder._id, {
-          "shipment.status": "CREATED"
-        });
-      }
-
-    } catch (shipErr) {
-      console.error("Shiprocket Integration Failed:", shipErr.message);
-    }
 
     return response.status(200).json({
       success: true,

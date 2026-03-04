@@ -79,7 +79,7 @@ export const generateShiprocketToken = async () => {
   }
 };
 
-export const createShiprocketOrder = async ({ order, address, user }) => {
+export const createShiprocketOrder = async ({ order, address, user,pickup ,product}) => {
   try {
 
     const tokenRes = await getShiprocketToken();
@@ -90,20 +90,20 @@ export const createShiprocketOrder = async ({ order, address, user }) => {
 
     const token = tokenRes.token;
 
-    const orderItems = order.products.map((item, index) => ({
-      name: item.productTitle,
-      sku: `SKU_${index + 1}`,
-      units: item.quantity,
-      selling_price: item.price,
+    const orderItems = {
+      name: product.productTitle,
+      sku: `SKU_${order.orderId}`,
+      units: product.quantity,
+      selling_price: product.price,
       discount: 0,
       tax: 0,
-      hsn: 441122
-    }));
+      hsn: order.orderId
+    };
 
     const payload = {
       order_id: order.orderId,
       order_date: new Date().toISOString().slice(0, 16).replace("T", " "),
-      pickup_location: "SLVD Warehouse",
+      pickup_location: pickup.pickup_location,
       comment: "Order from system",
 
       billing_customer_name: user.name,
@@ -114,15 +114,14 @@ export const createShiprocketOrder = async ({ order, address, user }) => {
       billing_state: address.state.trim(),
       billing_country: address.country,
       billing_email: user.email,
-      billing_phone: String(address.mobile),
+      billing_phone: address.mobile,
 
       shipping_is_billing: true,
       order_items: orderItems,
 
-      payment_method:
-        order.payment_status === "paid" ? "Prepaid" : "COD",
+      payment_method : order.payment_status === "paid" ? "Prepaid" : "COD",
 
-      sub_total: order.totalAmt,
+      sub_total: Math.ceil(product.quantity*product.price),
 
       length: 10,
       breadth: 15,
