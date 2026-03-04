@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { createShiprocketOrder } from "../utils/shiprocketService.js";
 import ProductModel from "../models/product.modal.js";
 import UserModel from "../models/user.model.js";
+import AddressModel from "../models/address.model.js";
 
 
 export const createRazorpayOrder = async (req, res) => {
@@ -45,8 +46,8 @@ export const createRazorpayOrder = async (req, res) => {
 
 export const razorpayWebhook = async (req, res) => {
     try {
-        console.log(req,"------------------------------req")
-        console.log(res,"--------------------------------res")
+        // console.log(req,"------------------------------req")
+        // console.log(res,"--------------------------------res")
 
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -61,24 +62,27 @@ export const razorpayWebhook = async (req, res) => {
         //     return res.status(400).json({ message: "Invalid signature" });
         // }
 
-        const event = req.body;
+         const event = req.body
 
-        if (event === "payment.captured") {
+        if (event.payment.entity.status === "captured") {
 
-            const payment = req.body.payload.payment.entity;
+            const payment = req.body.payment.entity
+  
 
             const receipt = payment.notes?.receipt || payment.order_id;
 
             const order = await OrderModel.findOne({
                 orderId: payment.order_id
             });
+            console.log(order)
 
             if (order) {
 
                 order.payment_status = "paid";
                 order.paymentId = payment.id;
 
-                await order.save();
+              const order1 =  await order.save();
+              console.log(order1,order)
                 const products = order.products
                 const address = await AddressModel.findOne({userId:order.userId});
             try {
@@ -145,7 +149,7 @@ export const razorpayWebhook = async (req, res) => {
             );
         }
 
-        res.status(200).json({ success: true });
+        res.status(200).json({ success: false });
 
     } catch (error) {
         console.error(error);
