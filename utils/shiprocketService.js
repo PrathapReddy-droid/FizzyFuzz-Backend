@@ -99,7 +99,8 @@ export const createShiprocketOrder = async ({ order, address, user,pickup ,produ
       tax: 0,
       hsn: order.orderId
     };
-
+    console.log(pickup);
+    
     const payload = {
       order_id: order.orderId,
       order_date: new Date().toISOString().slice(0, 16).replace("T", " "),

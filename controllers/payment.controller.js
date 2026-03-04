@@ -62,11 +62,11 @@ export const razorpayWebhook = async (req, res) => {
         //     return res.status(400).json({ message: "Invalid signature" });
         // }
 
-         const event = req.body
+         const event = req.body.payload
 
         if (event.payment.entity.status === "captured") {
 
-            const payment = req.body.payment.entity
+            const payment = req.body.payload.payment.entity
   
 
             const receipt = payment.notes?.receipt || payment.order_id;
