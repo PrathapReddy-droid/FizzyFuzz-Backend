@@ -56,6 +56,12 @@ const orderSchema = new mongoose.Schema({
                 type: String,
                 enum: ['PENDING', "CONFIRMED","IN-TRANSIT" ,"DELIVERED"],
                 default: "PENDING"
+            },
+            shipment: {
+                shiprocket_order_id: String,
+                shipment_id: String,
+                status: String,
+                raw_response: Object
             }
         }
     ],

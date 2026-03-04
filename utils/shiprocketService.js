@@ -90,17 +90,15 @@ export const createShiprocketOrder = async ({ order, address, user,pickup ,produ
 
     const token = tokenRes.token;
 
-    const orderItems = {
+    const orderItems = [{
       name: product.productTitle,
-      sku: `SKU_${order.orderId}`,
+      sku: `SKU_${1}`,
       units: product.quantity,
       selling_price: product.price,
       discount: 0,
       tax: 0,
-      hsn: order.orderId
-    };
-    console.log(pickup);
-    
+      hsn: 441122
+    }    ]
     const payload = {
       order_id: order.orderId,
       order_date: new Date().toISOString().slice(0, 16).replace("T", " "),
