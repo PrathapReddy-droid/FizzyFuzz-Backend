@@ -127,15 +127,15 @@ const userSchema = mongoose.Schema({
     },
     city:{
         type:String,
-        default:false
+        default:""
     },
     state:{
         type:String,
-        default:false
+        default:""
     },
     pickup_location:{
         type:String,
-        default:false
+        default:""
     },
     isConfirmed:{
         type:Boolean,
