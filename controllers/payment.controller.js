@@ -3,7 +3,7 @@
 import razorpay from "../utils/razorpay.js";
 import OrderModel from "../models/order.model.js";
 import crypto from "crypto";
-import { createShiprocketOrder } from "../utils/shiprocketService.js";
+import { createShiprocketOrder, generateSubOrderId } from "../utils/shiprocketService.js";
 import ProductModel from "../models/product.modal.js";
 import UserModel from "../models/user.model.js";
 import AddressModel from "../models/address.model.js";
@@ -93,6 +93,8 @@ export const razorpayWebhook = async (req, res) => {
                     for (const item of products) {
                         const user = await UserModel.findById(order.userId);
                         const product = await ProductModel.findById(item.productId);
+                        const sub_id = await generateSubOrderId()
+                        product.sub_id = sub_id
                         const pickup = await UserModel.findById(product.seller);
                         const shiprocketRes = await createShiprocketOrder({
                             pickup,
@@ -102,7 +104,6 @@ export const razorpayWebhook = async (req, res) => {
                             user
                         });
                         console.log(shiprocketRes);
-
                         if (shiprocketRes.success) {
                             const sr = shiprocketRes.data;
                             console.log(item.productId);
@@ -114,6 +115,7 @@ export const razorpayWebhook = async (req, res) => {
                                 },
                                 {
                                     $set: {
+                                        "products.$.sub_id": sub_id ,
                                         "products.$.shipment": {
                                             shiprocket_order_id: sr?.order_id,
                                             shipment_id: sr?.shipment_id,

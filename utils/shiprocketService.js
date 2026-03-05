@@ -28,6 +28,32 @@ export const generateOrderId = async () => {
   return `${prefix}${paddedNumber}`;
 };
 
+export const generateSubOrderId = async () => {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  const datePrefix = `${year}${month}${day}`;
+  const counterId = `order_${datePrefix}`;
+  const prefix = `SUBORD${datePrefix}`;
+
+  // 🔥 Atomic increment (THIS IS THE KEY)
+  const counter = await CounterModel.findByIdAndUpdate(
+    counterId,
+    { $inc: { seq: 1 } },
+    {
+      new: true,
+      upsert: true   // create if not exists
+    }
+  );
+
+  const paddedNumber = String(counter.seq).padStart(5, "0");
+
+  return `${prefix}${paddedNumber}`;
+};
+
 export const generateShiprocketToken = async () => {
   try {
     const response = await axios.post(
@@ -100,7 +126,7 @@ export const createShiprocketOrder = async ({ order, address, user,pickup ,produ
       hsn: 441122
     }    ]
     const payload = {
-      order_id: order.orderId,
+      order_id: product.sub_id,
       order_date: new Date().toISOString().slice(0, 16).replace("T", " "),
       pickup_location: pickup.pickup_location,
       comment: "Order from system",
