@@ -141,6 +141,37 @@ const userSchema = mongoose.Schema({
         type:Boolean,
         default:false
     },
+    wallet: {
+        balance: {
+            type: Number,
+            default: 0
+        },
+        transactions: [
+            {
+                amount: {
+                    type: Number,
+                    required: true
+                },
+                type: {
+                    type: String,
+                    enum: ["CREDIT", "DEBIT"],
+                    required: true
+                },
+                reason: {
+                    type: String,
+                    default: ""
+                },
+                orderId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "order"
+                },
+                createdAt: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ]
+    },
 },
     { timestamps: true }
 )

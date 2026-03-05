@@ -7,152 +7,175 @@ import sendEmailFun from "../config/sendEmail.js";
 import decoder from "../middlewares/decoder.js";
 import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId } from "../utils/shiprocketService.js";
 import AddressModel from "../models/address.model.js";
+import { reduceWallet } from "../utils/wallets.js";
 
 export const createOrderController = async (request, response) => {
-  try {
-    const { products, userId } = request.body;
+    try {
+        const { products, userId, reduction } = request.body;
 
-    if (!products || products.length === 0) {
-      return response.status(400).json({
-        success: false,
-        message: "Products are required"
-      });
-    }
-    
-    const sellersSet = new Set();
-    const enrichedProducts = [];
-
-    // 🔁 Product loop
-    for (const item of products) {
-      const product = await ProductModel.findById(item.productId);
-
-      if (!product) {
-        return response.status(404).json({
-          success: false,
-          message: "Product not found"
-        });
-      }
-
-      enrichedProducts.push({
-        ...item,
-        seller: product.seller
-      });
-
-      sellersSet.add(product.seller.toString());
-
-      await ProductModel.findByIdAndUpdate(product._id, {
-        $inc: {
-          countInStock: -item.quantity,
-          sale: item.quantity
+        if (!products || products.length === 0) {
+            return response.status(400).json({
+                success: false,
+                message: "Products are required"
+            });
         }
-      });
+
+        const sellersSet = new Set();
+        const enrichedProducts = [];
+
+        // 🔁 Product loop
+        for (const item of products) {
+            const product = await ProductModel.findById(item.productId);
+
+            if (!product) {
+                return response.status(404).json({
+                    success: false,
+                    message: "Product not found"
+                });
+            }
+
+            enrichedProducts.push({
+                ...item,
+                seller: product.seller
+            });
+
+            sellersSet.add(product.seller.toString());
+
+            await ProductModel.findByIdAndUpdate(product._id, {
+                $inc: {
+                    countInStock: -item.quantity,
+                    sale: item.quantity
+                }
+            });
+        }
+        // 🔥 Generate Order ID
+        const orderId = await generateOrderId();
+        console.log(3, request.body);
+        let isReducable = await reduceWallet(userId, reduction, orderId)
+        if (isReducable == "failed") {
+            return response.status(409).json({
+                success: false,
+                message: "reduction amount exceeded wallet amount",
+            });
+        }
+        const order = new OrderModel({
+            orderId,
+            userId,
+            products: enrichedProducts,
+            sellers_list: Array.from(sellersSet),
+            paymentId: request.body.paymentId,
+            payment_status: request.body.payment_status,
+            delivery_address: request.body.delivery_address,
+            totalAmt: request.body.totalAmt
+        });
+
+        const savedOrder = await order.save();
+        // 📧 Send confirmation email
+        const user = await UserModel.findById(userId);
+
+        console.log(user);
+        await sendEmailFun({
+            sendTo: [user.email],
+            subject: "Order Confirmation",
+            html: OrderConfirmationEmail(user.name, savedOrder)
+        });
+
+        return response.status(200).json({
+            success: true,
+            message: "Order Placed Successfully",
+            order: savedOrder
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            success: false,
+            message: error.message || error
+        });
     }
-    // 🔥 Generate Order ID
-    const orderId = await generateOrderId();
-    console.log(3, request.body);
-    const order = new OrderModel({
-      orderId,
-      userId,
-      products: enrichedProducts,
-      sellers_list: Array.from(sellersSet),
-      paymentId: request.body.paymentId,
-      payment_status: request.body.payment_status,
-      delivery_address: request.body.delivery_address,
-      totalAmt: request.body.totalAmt
-    });
-
-    const savedOrder = await order.save();
-    // 📧 Send confirmation email
-    const user = await UserModel.findById(userId);
-
-    console.log(user);
-    await sendEmailFun({
-      sendTo: [user.email],
-      subject: "Order Confirmation",
-      html: OrderConfirmationEmail(user.name, savedOrder)
-    });
-    
-
-    // ===================================================
-    // 🚀 CALL SHIPROCKET AFTER ORDER CREATED
-    // ===================================================
-
-
-
-    return response.status(200).json({
-      success: true,
-      message: "Order Placed Successfully",
-      order: savedOrder
-    });
-
-  } catch (error) {
-    return response.status(500).json({
-      success: false,
-      message: error.message || error
-    });
-  }
 };
 
 export const cancelOrderController = async (req, res) => {
-  try {
-    const { orderId } = req.body;
+    try {
+        const { sub_id, order_id, user_id, reason  } = req.body;
 
-    if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message: "orderId is required"
-      });
+        if (!sub_id || !order_id || !user_id ) {
+            return res.status(400).json({
+                success: false,
+                message: "order_id and sub_id is required"
+            });
+        }
+
+        // 🔍 Find order
+        const order = await OrderModel.findOne({ _id: order_id, "products.sub_id": sub_id });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found"
+            });
+        }
+        const product = order.products.find(p => p.sub_id === sub_id);
+        // ❗ Check if shipment exists
+        if (!product?.shipment?.shiprocket_order_id) {
+            return res.status(400).json({
+                success: false,
+                message: "Shipment not created for this order"
+            });
+        }
+
+        // 🚀 Call Shiprocket cancel API
+        const cancelRes = await cancelShiprocketOrder(product?.shipment?.shiprocket_order_id);
+
+        if (!cancelRes.success) {
+            return res.status(400).json({
+                success: false,
+                message: cancelRes.message,
+                error: cancelRes.error
+            });
+        }
+        product.status = "CANCELLED"
+        product?.shipment.status = "CANCELLED"
+        product?.shipment.cancel_resp = cancelRes
+        await OrderModel.updateOne(
+            { _id: order_id },
+            {
+                $pull: { products: { sub_id: sub_id } },
+                $push: {
+                    cancelled_products: {
+                        ...product,
+                        reason,
+                        cancelled_at: new Date()
+                    }
+                }
+            }
+        );
+        const refundAmount = Math.ceil(product.quantity * product.price)
+        await UserModel.updateOne(
+            { _id: user_id },
+            {
+                $inc: { "wallet.balance": refundAmount },
+                $push: {
+                    "wallet.transactions": {
+                        amount: refundAmount,
+                        type: "CREDIT",
+                        reason: "Order Cancel Refund",
+                        orderId: sub_id
+                    }
+                }
+            }
+        );
+        return res.status(200).json({
+            success: true,
+            message: "Order cancelled successfully",
+            data: cancelRes.data
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || error
+        });
     }
-
-    // 🔍 Find order
-    const order = await OrderModel.findOne({ orderId });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found"
-      });
-    }
-
-    // ❗ Check if shipment exists
-    if (!order?.shipment?.shiprocket_order_id) {
-      return res.status(400).json({
-        success: false,
-        message: "Shipment not created for this order"
-      });
-    }
-
-    // 🚀 Call Shiprocket cancel API
-    const cancelRes = await cancelShiprocketOrder(
-      order.shipment.shiprocket_order_id
-    );
-
-    if (!cancelRes.success) {
-      return res.status(400).json({
-        success: false,
-        message: cancelRes.message,
-        error: cancelRes.error
-      });
-    }
-
-    // ✅ Update DB
-    await OrderModel.findByIdAndUpdate(order._id, {
-      order_status: "cancelled",
-      "shipment.status": "CANCELLED"
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Order cancelled successfully",
-      data: cancelRes.data
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || error
-    });
-  }
 };
 
 export async function getOrderDetailsController(request, response) {
@@ -160,14 +183,14 @@ export async function getOrderDetailsController(request, response) {
         const userId = request.userId // order id
         let token_data = await decoder(request)
         let role = token_data?.user.role
-        
+
         let query = {}
-        if(role == "SELLER") { 
-            query.sellers_list =  { $in: [token_data.user._id] }
+        if (role == "SELLER") {
+            query.sellers_list = { $in: [token_data.user._id] }
             //particular 
         }
         console.log(query);
-        
+
         const { page, limit } = request.query;
 
         const orderlist = await OrderModel.find(query).sort({ createdAt: -1 }).populate('delivery_address userId').skip((page - 1) * limit).limit(parseInt(limit));
@@ -195,7 +218,7 @@ export async function getOrderDetailsController(request, response) {
 export async function getUserOrderDetailsController(request, response) {
     try {
         const userId = request.userId // order id
-        
+
         const { page, limit } = request.query;
 
         const orderlist = await OrderModel.find({ userId: userId }).sort({ createdAt: -1 }).populate('delivery_address userId').skip((page - 1) * limit).limit(parseInt(limit));
@@ -587,11 +610,11 @@ export const totalUsersController = async (request, response) => {
     try {
         let body = request.body
         console.log(body);
-        
+
         const users = await UserModel.aggregate([
             {
-                $match:{
-                    role : body.type
+                $match: {
+                    role: body.type
                 }
             },
             {
