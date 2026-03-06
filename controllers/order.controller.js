@@ -134,8 +134,8 @@ export const cancelOrderController = async (req, res) => {
             });
         }
         product.status = "CANCELLED"
-        product?.shipment.status = "CANCELLED"
-        product?.shipment.cancel_resp = cancelRes
+        product.shipment.status = "CANCELLED"
+        product.shipment.cancel_resp = cancelRes
         await OrderModel.updateOne(
             { _id: order_id },
             {
