@@ -51,12 +51,14 @@ export const createOrderController = async (request, response) => {
         // 🔥 Generate Order ID
         const orderId = await generateOrderId();
         console.log(3, request.body);
-        let isReducable = await reduceWallet(userId, reduction, orderId)
-        if (isReducable == "failed") {
-            return response.status(409).json({
-                success: false,
-                message: "reduction amount exceeded wallet amount",
-            });
+        if(reduction){
+            let isReducable = await reduceWallet(userId, reduction, orderId)
+            if (isReducable == "failed") {
+                return response.status(409).json({
+                    success: false,
+                    message: "reduction amount exceeded wallet amount",
+                });
+            }
         }
         const order = new OrderModel({
             orderId,
