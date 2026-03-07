@@ -208,7 +208,7 @@ export const cancelOrderController = async (req, res) => {
         }
 
         // ✅ Guard against cancelling already-cancelled/delivered products
-        const NON_CANCELLABLE_STATUSES = ["CANCELLED", "DELIVERED", "RETURNED", "SHIPPED"];
+        const NON_CANCELLABLE_STATUSES = ["CANCELLED", "DELIVERED", "RETURNED"];
         if (NON_CANCELLABLE_STATUSES.includes(product.status)) {
             await session.abortTransaction();
             session.endSession();
@@ -267,23 +267,24 @@ export const cancelOrderController = async (req, res) => {
 
         // ✅ Refund using quantity * price (matches your schema — no paid_amount field)
         const refundAmount = Math.ceil(product.quantity * product.price);
-
-        await UserModel.updateOne(
-            { _id: user_id },
-            {
-                $inc: { "wallet.balance": refundAmount },
-                $push: {
-                    "wallet.transactions": {
-                        amount: refundAmount,
-                        type: "CREDIT",
-                        reason: "Order Cancel Refund",
-                        orderId: product._id,
-                        createdAt: new Date()
+        if(order.payment_status=="paid"){
+            await UserModel.updateOne(
+                { _id: user_id },
+                {
+                    $inc: { "wallet.balance": refundAmount },
+                    $push: {
+                        "wallet.transactions": {
+                            amount: refundAmount,
+                            type: "CREDIT",
+                            reason: "Order Cancel Refund",
+                            orderId: product._id,
+                            createdAt: new Date()
+                        }
                     }
-                }
-            },
-            { session }
-        );
+                },
+                { session }
+            );
+        }
 
         // ✅ Commit both DB operations atomically
         await session.commitTransaction();
