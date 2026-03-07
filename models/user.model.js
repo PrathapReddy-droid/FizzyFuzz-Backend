@@ -162,7 +162,7 @@ const userSchema = mongoose.Schema({
                     default: ""
                 },
                 orderId: {
-                    type: mongoose.Schema.Types.ObjectId,
+                    type: String,
                     ref: "order"
                 },
                 createdAt: {
