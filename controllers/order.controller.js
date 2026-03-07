@@ -5,13 +5,13 @@ import paypal from "@paypal/checkout-server-sdk";
 import OrderConfirmationEmail from "../utils/orderEmailTemplate.js";
 import sendEmailFun from "../config/sendEmail.js";
 import decoder from "../middlewares/decoder.js";
-import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId } from "../utils/shiprocketService.js";
+import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId, generateSubOrderId } from "../utils/shiprocketService.js";
 import AddressModel from "../models/address.model.js";
 import { reduceWallet } from "../utils/wallets.js";
 
 export const createOrderController = async (request, response) => {
     try {
-        const { products, userId, reduction } = request.body;
+        const { products, userId, reduction , payment_type } = request.body;
 
         if (!products || products.length === 0) {
             return response.status(400).json({
@@ -70,6 +70,70 @@ export const createOrderController = async (request, response) => {
         });
 
         const savedOrder = await order.save();
+        if(payment_type=="COD"){
+            console.log(savedOrder)
+                const products = savedOrder.products
+                const address = await AddressModel.findOne({ userId: savedOrder.userId });
+                try {
+                    for (const item of products) {
+                        const user = await UserModel.findById(savedOrder.userId);
+                        const product = await ProductModel.findById(item.productId);
+                        const sub_id = await generateSubOrderId()
+                        product.sub_id = sub_id
+                        const pickup = await UserModel.findById(product.seller);
+                        const shiprocketRes = await createShiprocketOrder({
+                            pickup,
+                            product: item,
+                            order : savedOrder,
+                            address,
+                            user
+                        });
+                        console.log(shiprocketRes);
+                        if (shiprocketRes.success) {
+                            const sr = shiprocketRes.data;
+                            console.log(item.productId);
+
+                            let data = await OrderModel.updateOne(
+                                {
+                                    _id: order._id,
+                                    "products.productId": item.productId
+                                },
+                                {
+                                    $set: {
+                                        "products.$.sub_id": sub_id ,
+                                        "products.$.shipment": {
+                                            shiprocket_order_id: sr?.order_id,
+                                            shipment_id: sr?.shipment_id,
+                                            status: "CONFIRMED",
+                                            raw_response: sr
+                                        }
+                                    }
+                                }
+                            );
+
+                            console.log(data);
+
+
+
+                        } else {
+                            console.error("Shiprocket Error:", shiprocketRes.message);
+                            await OrderModel.findByIdAndUpdate(order._id, {
+                                "mischief": "something went wrong in shipment"
+                            });
+                        }
+                        await ProductModel.findByIdAndUpdate(product._id, {
+                            $inc: {
+                                countInStock: -item.quantity,
+                                sale: item.quantity
+                            }
+                        });
+                    }
+
+
+                } catch (shipErr) {
+                    console.error("Shiprocket Integration Failed:", shipErr.message);
+                }
+        }
         // 📧 Send confirmation email
         const user = await UserModel.findById(userId);
 
@@ -94,62 +158,116 @@ export const createOrderController = async (request, response) => {
     }
 };
 
-export const cancelOrderController = async (req, res) => {
-    try {
-        const { sub_id, order_id, user_id, reason  } = req.body;
+import mongoose from "mongoose";
 
-        if (!sub_id || !order_id || !user_id ) {
+export const cancelOrderController = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { product_id, order_id, user_id, reason } = req.body;
+
+        // ✅ Fixed validation message
+        if (!product_id || !order_id || !user_id) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({
                 success: false,
-                message: "order_id and sub_id is required"
+                message: "order_id, product_id, and user_id are required"
             });
         }
 
-        // 🔍 Find order
-        const order = await OrderModel.findOne({ _id: order_id, "products.sub_id": sub_id });
+        // ✅ Authorization check — ensure order belongs to this user
+        const order = await OrderModel.findOne({
+            _id: order_id,
+            userId: user_id,
+            "products._id": product_id
+        }).session(session);
 
         if (!order) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({
                 success: false,
-                message: "Order not found"
-            });
-        }
-        const product = order.products.find(p => p.sub_id === sub_id);
-        // ❗ Check if shipment exists
-        if (!product?.shipment?.shiprocket_order_id) {
-            return res.status(400).json({
-                success: false,
-                message: "Shipment not created for this order"
+                message: "Order not found or does not belong to this user"
             });
         }
 
-        // 🚀 Call Shiprocket cancel API
-        const cancelRes = await cancelShiprocketOrder(product?.shipment?.shiprocket_order_id);
+        // ✅ Find the specific product using _id (not sub_id)
+        const product = order.products.find(
+            p => p._id.toString() === product_id.toString()
+        );
 
-        if (!cancelRes.success) {
-            return res.status(400).json({
+        if (!product) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({
                 success: false,
-                message: cancelRes.message,
-                error: cancelRes.error
+                message: "Product not found in order"
             });
         }
-        product.status = "CANCELLED"
-        product.shipment.status = "CANCELLED"
-        product.shipment.cancel_resp = cancelRes
+
+        // ✅ Guard against cancelling already-cancelled/delivered products
+        const NON_CANCELLABLE_STATUSES = ["CANCELLED", "DELIVERED", "RETURNED", "SHIPPED"];
+        if (NON_CANCELLABLE_STATUSES.includes(product.status)) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({
+                success: false,
+                message: `Product cannot be cancelled as it is already ${product.status}`
+            });
+        }
+
+        // ✅ Shipment is at order level (based on your schema)
+        if (!order.shipment?.shiprocket_order_id) {
+            // Allow cancel without shiprocket if shipment not yet created
+            console.warn(`No shiprocket_order_id found for order ${order_id}, skipping shiprocket cancellation`);
+        }
+
+        let cancelRes = { success: true, data: null };
+
+        // ✅ Only call Shiprocket if shipment was actually created in shiprocket
+        if (order.shipment?.shiprocket_order_id) {
+            cancelRes = await cancelShiprocketOrder(order.shipment.shiprocket_order_id);
+
+            if (!cancelRes.success) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({
+                    success: false,
+                    message: cancelRes.message,
+                    error: cancelRes.error
+                });
+            }
+        }
+
+        // ✅ Build cancelled product object from plain object (avoids Mongoose internals)
+        const cancelledProduct = {
+            ...product.toObject(),
+            status: "CANCELLED",
+            reason: reason || "No reason provided",
+            cancelled_at: new Date(),
+            ...(cancelRes.data && { cancel_resp: cancelRes.data })
+        };
+
+        // ✅ Atomically pull from products and push to cancelled_products
         await OrderModel.updateOne(
             { _id: order_id },
             {
-                $pull: { products: { sub_id: sub_id } },
-                $push: {
-                    cancelled_products: {
-                        ...product,
-                        reason,
-                        cancelled_at: new Date()
-                    }
-                }
-            }
+                $pull: { products: { _id: product._id } },
+                $push: { cancelled_products: cancelledProduct },
+                // ✅ Update order-level shipment status only if all products are cancelled
+                ...(order.products.length === 1 && {
+                    "shipment.status": "CANCELLED",
+                    order_status: "cancelled"
+                })
+            },
+            { session }
         );
-        const refundAmount = Math.ceil(product.quantity * product.price)
+
+        // ✅ Refund using quantity * price (matches your schema — no paid_amount field)
+        const refundAmount = Math.ceil(product.quantity * product.price);
+
         await UserModel.updateOne(
             { _id: user_id },
             {
@@ -159,21 +277,39 @@ export const cancelOrderController = async (req, res) => {
                         amount: refundAmount,
                         type: "CREDIT",
                         reason: "Order Cancel Refund",
-                        orderId: sub_id
+                        orderId: product._id,
+                        createdAt: new Date()
                     }
                 }
-            }
+            },
+            { session }
         );
+
+        // ✅ Commit both DB operations atomically
+        await session.commitTransaction();
+        session.endSession();
+
+        console.log(`Order ${order_id} | Product ${product_id} cancelled by user ${user_id}`);
+
         return res.status(200).json({
             success: true,
             message: "Order cancelled successfully",
-            data: cancelRes.data
+            data: {
+                refundAmount,
+                cancelledProduct,
+                ...(cancelRes.data && { shiprocket: cancelRes.data })
+            }
         });
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        console.error("cancelOrderController error:", error);
+
         return res.status(500).json({
             success: false,
-            message: error.message || error
+            message: error.message || "Internal server error"
         });
     }
 };
