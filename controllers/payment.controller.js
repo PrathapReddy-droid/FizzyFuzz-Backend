@@ -94,7 +94,7 @@ export const razorpayWebhook = async (req, res) => {
                         const user = await UserModel.findById(order.userId);
                         const product = await ProductModel.findById(item.productId);
                         const sub_id = await generateSubOrderId()
-                        product.sub_id = sub_id
+                        item.sub_id = sub_id
                         const pickup = await UserModel.findById(product.seller);
                         const shiprocketRes = await createShiprocketOrder({
                             pickup,
@@ -115,7 +115,7 @@ export const razorpayWebhook = async (req, res) => {
                                 },
                                 {
                                     $set: {
-                                        "products.$.sub_id": sub_id ,
+                                        "products.$.sub_id": item.sub_id ,
                                         "products.$.shipment": {
                                             shiprocket_order_id: sr?.order_id,
                                             shipment_id: sr?.shipment_id,

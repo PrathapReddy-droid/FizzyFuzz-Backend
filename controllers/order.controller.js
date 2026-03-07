@@ -11,7 +11,8 @@ import { reduceWallet } from "../utils/wallets.js";
 
 export const createOrderController = async (request, response) => {
     try {
-        const { products, userId, reduction , payment_type="COD" } = request.body;
+        const { products, userId, reduction, payment_type = "COD" } = request.body;
+        console.log(request.body);
 
         if (!products || products.length === 0) {
             return response.status(400).json({
@@ -51,7 +52,7 @@ export const createOrderController = async (request, response) => {
         // 🔥 Generate Order ID
         const orderId = await generateOrderId();
         console.log(3, request.body);
-        if(reduction){
+        if (reduction) {
             let isReducable = await reduceWallet(userId, reduction, orderId)
             if (isReducable == "failed") {
                 return response.status(409).json({
@@ -72,69 +73,69 @@ export const createOrderController = async (request, response) => {
         });
 
         const savedOrder = await order.save();
-        if(payment_type=="COD"){
+        if (payment_type == "COD") {
             console.log(savedOrder)
-                const products = savedOrder.products
-                const address = await AddressModel.findOne({ userId: savedOrder.userId });
-                try {
-                    for (const item of products) {
-                        const user = await UserModel.findById(savedOrder.userId);
-                        const product = await ProductModel.findById(item.productId);
-                        const sub_id = await generateSubOrderId()
-                        product.sub_id = sub_id
-                        const pickup = await UserModel.findById(product.seller);
-                        const shiprocketRes = await createShiprocketOrder({
-                            pickup,
-                            product: item,
-                            order : savedOrder,
-                            address,
-                            user
-                        });
-                        console.log(shiprocketRes);
-                        if (shiprocketRes.success) {
-                            const sr = shiprocketRes.data;
-                            console.log(item.productId);
-
-                            let data = await OrderModel.updateOne(
-                                {
-                                    _id: order._id,
-                                    "products.productId": item.productId
-                                },
-                                {
-                                    $set: {
-                                        "products.$.sub_id": sub_id ,
-                                        "products.$.shipment": {
-                                            shiprocket_order_id: sr?.order_id,
-                                            shipment_id: sr?.shipment_id,
-                                            status: "CONFIRMED",
-                                            raw_response: sr
-                                        }
+            const products = savedOrder.products
+            const address = await AddressModel.findOne({ userId: savedOrder.userId });
+            try {
+                for (const item of products) {
+                    const user = await UserModel.findById(savedOrder.userId);
+                    const sub_id = await generateSubOrderId()
+                    const product = await ProductModel.findById(item.productId);
+                    item.sub_id = sub_id
+                    const pickup = await UserModel.findById(product.seller);
+                    const shiprocketRes = await createShiprocketOrder({
+                        pickup,
+                        product: item,
+                        order: savedOrder,
+                        address,
+                        user
+                    });
+                    console.log(shiprocketRes);
+                    if (shiprocketRes.success) {
+                        const sr = shiprocketRes.data;
+                        let data = await OrderModel.updateOne(
+                            { _id: order._id },
+                            {
+                                $set: {
+                                    "products.$[p].sub_id": item.sub_id,
+                                    "products.$[p].shipment": {
+                                        shiprocket_order_id: sr?.order_id,
+                                        shipment_id: sr?.shipment_id,
+                                        status: "CONFIRMED",
+                                        raw_response: sr
                                     }
                                 }
-                            );
-
-                            console.log(data);
-
-
-
-                        } else {
-                            console.error("Shiprocket Error:", shiprocketRes.message);
-                            await OrderModel.findByIdAndUpdate(order._id, {
-                                "mischief": "something went wrong in shipment"
-                            });
-                        }
-                        await ProductModel.findByIdAndUpdate(product._id, {
-                            $inc: {
-                                countInStock: -item.quantity,
-                                sale: item.quantity
+                            },
+                            {
+                                arrayFilters: [
+                                    { "p.productId": String(item.productId) }
+                                ]
                             }
+                        );
+
+                        console.log(data);
+
+
+
+                    } else {
+                        console.error("Shiprocket Error:", shiprocketRes.message);
+                        await OrderModel.findByIdAndUpdate(order._id, {
+                            "mischief": "something went wrong in shipment"
                         });
                     }
-
-
-                } catch (shipErr) {
-                    console.error("Shiprocket Integration Failed:", shipErr.message);
+                    await ProductModel.findByIdAndUpdate(product._id, {
+                        $inc: {
+                            countInStock: -item.quantity,
+                            sale: item.quantity
+                        }
+                    });
                 }
+
+
+            } catch (shipErr) {
+                console.error("Shiprocket Integration Failed:", shipErr.message);
+            }
         }
         // 📧 Send confirmation email
         const user = await UserModel.findById(userId);
@@ -163,156 +164,116 @@ export const createOrderController = async (request, response) => {
 import mongoose from "mongoose";
 
 export const cancelOrderController = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const { product_id, order_id, user_id, reason } = req.body;
+        let { sub_id, order_id, user_id, reason } = req.body;
 
-        // ✅ Fixed validation message
-        if (!product_id || !order_id || !user_id) {
-            await session.abortTransaction();
-            session.endSession();
+        if (!sub_id || !order_id || !user_id) {
             return res.status(400).json({
                 success: false,
-                message: "order_id, product_id, and user_id are required"
+                message: "order_id, sub_id and user_id are required"
             });
         }
 
-        // ✅ Authorization check — ensure order belongs to this user
+        // normalize sub_id
+        sub_id = String(sub_id).trim();
+
+        // 🔍 Find order
         const order = await OrderModel.findOne({
             _id: order_id,
-            userId: user_id,
-            "products._id": product_id
-        }).session(session);
+            "products.sub_id": sub_id
+        });
 
         if (!order) {
-            await session.abortTransaction();
-            session.endSession();
             return res.status(404).json({
                 success: false,
-                message: "Order not found or does not belong to this user"
+                message: "Order not found"
             });
         }
 
-        // ✅ Find the specific product using _id (not sub_id)
-        const product = order.products.find(
-            p => p._id.toString() === product_id.toString()
-        );
+        // ✅ get product safely
+        const product = order.products?.toObject().find(p => String(p.sub_id).trim() === sub_id);
 
         if (!product) {
-            await session.abortTransaction();
-            session.endSession();
             return res.status(404).json({
                 success: false,
                 message: "Product not found in order"
             });
         }
 
-        // ✅ Guard against cancelling already-cancelled/delivered products
-        const NON_CANCELLABLE_STATUSES = ["CANCELLED", "DELIVERED", "RETURNED"];
-        if (NON_CANCELLABLE_STATUSES.includes(product.status)) {
-            await session.abortTransaction();
-            session.endSession();
+        // ❗ shipment check
+        if (!product?.shipment?.shiprocket_order_id) {
             return res.status(400).json({
                 success: false,
-                message: `Product cannot be cancelled as it is already ${product.status}`
+                message: "Shipment not created for this order"
             });
         }
 
-        // ✅ Shipment is at order level (based on your schema)
-        if (!order.shipment?.shiprocket_order_id) {
-            // Allow cancel without shiprocket if shipment not yet created
-            console.warn(`No shiprocket_order_id found for order ${order_id}, skipping shiprocket cancellation`);
+        // 🚀 Cancel shipment
+        const cancelRes = await cancelShiprocketOrder(product.shipment.shiprocket_order_id);
+
+        if (!cancelRes?.success) {
+            return res.status(400).json({
+                success: false,
+                message: cancelRes?.message || "Shiprocket cancel failed",
+                error: cancelRes?.error
+            });
         }
 
-        let cancelRes = { success: true, data: null };
+        // update local product status
+        product.status = "CANCELLED";
+        product.shipment.status = "CANCELLED";
+        product.shipment.cancel_resp = cancelRes;
 
-        // ✅ Only call Shiprocket if shipment was actually created in shiprocket
-        if (order.shipment?.shiprocket_order_id) {
-            cancelRes = await cancelShiprocketOrder(order.shipment.shiprocket_order_id);
-
-            if (!cancelRes.success) {
-                await session.abortTransaction();
-                session.endSession();
-                return res.status(400).json({
-                    success: false,
-                    message: cancelRes.message,
-                    error: cancelRes.error
-                });
-            }
-        }
-
-        // ✅ Build cancelled product object from plain object (avoids Mongoose internals)
-        const cancelledProduct = {
-            ...product.toObject(),
-            status: "CANCELLED",
-            reason: reason || "No reason provided",
-            cancelled_at: new Date(),
-            ...(cancelRes.data && { cancel_resp: cancelRes.data })
-        };
-
-        // ✅ Atomically pull from products and push to cancelled_products
+        // move product to cancelled_products
         await OrderModel.updateOne(
             { _id: order_id },
             {
-                $pull: { products: { _id: product._id } },
-                $push: { cancelled_products: cancelledProduct },
-                // ✅ Update order-level shipment status only if all products are cancelled
-                ...(order.products.length === 1 && {
-                    "shipment.status": "CANCELLED",
-                    order_status: "cancelled"
-                })
-            },
-            { session }
+                $pull: { products: { sub_id: sub_id } },
+                $push: {
+                    cancelled_products: {
+                        ...product,
+                        reason,
+                        cancelled_at: new Date()
+                    },
+                },
+                $set: {
+                    order_status: "cancelled",
+                    "shipment.status": "CANCELLED"
+                }
+            }
         );
 
-        // ✅ Refund using quantity * price (matches your schema — no paid_amount field)
+        // 💰 refund
         const refundAmount = Math.ceil(product.quantity * product.price);
-        if(order.payment_status=="paid"){
-            await UserModel.updateOne(
-                { _id: user_id },
-                {
-                    $inc: { "wallet.balance": refundAmount },
-                    $push: {
-                        "wallet.transactions": {
-                            amount: refundAmount,
-                            type: "CREDIT",
-                            reason: "Order Cancel Refund",
-                            orderId: product._id,
-                            createdAt: new Date()
-                        }
+
+        await UserModel.updateOne(
+            { _id: user_id },
+            {
+                $inc: { "wallet.balance": refundAmount },
+                $push: {
+                    "wallet.transactions": {
+                        amount: refundAmount,
+                        type: "CREDIT",
+                        reason: "Order Cancel Refund",
+                        orderId: sub_id,
+                        createdAt: new Date()
                     }
-                },
-                { session }
-            );
-        }
-
-        // ✅ Commit both DB operations atomically
-        await session.commitTransaction();
-        session.endSession();
-
-        console.log(`Order ${order_id} | Product ${product_id} cancelled by user ${user_id}`);
+                }
+            }
+        );
 
         return res.status(200).json({
             success: true,
             message: "Order cancelled successfully",
-            data: {
-                refundAmount,
-                cancelledProduct,
-                ...(cancelRes.data && { shiprocket: cancelRes.data })
-            }
+            refundAmount
         });
 
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-
-        console.error("cancelOrderController error:", error);
+        console.error("Cancel Order Error:", error);
 
         return res.status(500).json({
             success: false,
-            message: error.message || "Internal server error"
+            message: error.message || "Server error"
         });
     }
 };

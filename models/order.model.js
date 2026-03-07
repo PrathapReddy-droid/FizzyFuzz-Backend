@@ -47,6 +47,7 @@ const orderSchema = new mongoose.Schema({
             quantity: Number,
             price: Number,
             image: String,
+            sub_id : { type : String, default : "" },
             subTotal: Number,
             seller: {
                 type: mongoose.Schema.Types.ObjectId,
@@ -65,6 +66,7 @@ const orderSchema = new mongoose.Schema({
             }
         }
     ],
+    
     cancelled_products : { type : Array, default: [] },
     paymentId: { type: String, default: "" },
     orderId:{type:String, default:""},

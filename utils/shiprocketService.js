@@ -115,7 +115,8 @@ export const createShiprocketOrder = async ({ order, address, user,pickup ,produ
     }
 
     const token = tokenRes.token;
-
+    console.log("productproductproductproductproduct : ",product);
+    
     const orderItems = [{
       name: product.productTitle,
       sku: `SKU_${1}`,
