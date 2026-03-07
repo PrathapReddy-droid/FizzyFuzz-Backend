@@ -11,7 +11,7 @@ import { reduceWallet } from "../utils/wallets.js";
 
 export const createOrderController = async (request, response) => {
     try {
-        const { products, userId, reduction , payment_type } = request.body;
+        const { products, userId, reduction , payment_type="COD" } = request.body;
 
         if (!products || products.length === 0) {
             return response.status(400).json({
