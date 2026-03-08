@@ -9,7 +9,7 @@ import { request } from 'http';
 import decoder from '../middlewares/decoder.js';
 import { s3 } from '../utils/awsConfig.js';
 import videoModel from '../models/video.model.js';
-import { getDeliveryEstimate } from '../utils/shiprocketService.js';
+import { createShiprocketReturnOrder, getDeliveryEstimate } from '../utils/shiprocketService.js';
 import UserModel from '../models/user.model.js';
 
 
@@ -1951,6 +1951,87 @@ export async function searchProductController(request, response) {
         })
     }
 }
+
+export const createReturnOrderController = async (req, res) => {
+  try {
+    const { sub_id, order_id, user_id, reason } = req.body;
+
+    if (!sub_id || !order_id || !user_id) {
+      return res.status(400).json({
+        success: false,
+        message: "order_id, sub_id and user_id are required"
+      });
+    }
+
+    // 🔍 Find the order
+    const order = await OrderModel.findOne({
+      _id: order_id,
+      "products.sub_id": String(sub_id).trim()
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // ✅ Find the specific product
+    const product = order.products?.toObject().find(
+      p => String(p.sub_id).trim() === String(sub_id).trim()
+    );
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found in order" });
+    }
+
+    // ❗ Must have an existing shipment
+    if (!product?.shipment?.shiprocket_order_id) {
+      return res.status(400).json({ success: false, message: "Shipment not found for this product" });
+    }
+
+    // 👤 Fetch user, address, seller (pickup)
+    const user = await UserModel.findById(user_id);
+    const address = await AddressModel.findOne({ userId: user_id });
+    const productDoc = await ProductModel.findById(product.productId);
+    const pickup = await UserModel.findById(productDoc.seller);
+
+    // 🚀 Create Shiprocket return order
+    const returnRes = await createShiprocketReturnOrder({ order, product, user, address, pickup });
+
+    if (!returnRes.success) {
+      return res.status(400).json({
+        success: false,
+        message: returnRes.message || "Return shipment creation failed",
+        error: returnRes.error
+      });
+    }
+
+    // 💾 Update the product's shipment with return info
+    await OrderModel.updateOne(
+      { _id: order_id },
+      {
+        $set: {
+          "products.$[p].shipment.return_order_id": returnRes.data?.return_order_id,
+          "products.$[p].shipment.return_shipment_id": returnRes.data?.shipment_id,
+          "products.$[p].shipment.return_status": "RETURN_INITIATED",
+          "products.$[p].status": "RETURN_INITIATED"
+        }
+      },
+      { arrayFilters: [{ "p.sub_id": String(sub_id).trim() }] }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Return order created successfully",
+      data: returnRes.data
+    });
+
+  } catch (error) {
+    console.error("Return Order Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error"
+    });
+  }
+};
 
 export const checkProductDeliveryTime = async (req, res) => {
   try {
