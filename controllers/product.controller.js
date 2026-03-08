@@ -1954,8 +1954,8 @@ export async function searchProductController(request, response) {
 
 export const checkProductDeliveryTime = async (req, res) => {
   try {
-    const { productId, deliveryPincode } = req.body;
-
+    const { product_id , deliveryPincode } = req.body;
+    const productId = product_id
     if (!productId || !deliveryPincode) {
       return res.status(400).json({
         success: false,
