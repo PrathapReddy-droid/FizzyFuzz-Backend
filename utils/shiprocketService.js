@@ -381,3 +381,49 @@ export const getDeliveryEstimate = async ({
     };
   }
 };
+
+export const trackShiprocketOrder = async (shipmentId) => {
+  try {
+    const tokenRes = await getShiprocketToken();
+
+    if (!tokenRes.success) {
+      return {
+        success: false,
+        message: "Token generation failed",
+        error: tokenRes
+      };
+    }
+
+    const token = tokenRes.token;
+
+    const response = await axios.get(
+      `https://apiv2.shiprocket.in/v1/external/courier/track/shipment/${shipmentId}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    return {
+      success: true,
+      data: response.data
+    };
+
+  } catch (error) {
+
+    if (error.response) {
+      return {
+        success: false,
+        message: error.response.data?.message || "Tracking failed",
+        error: error.response.data
+      };
+    }
+
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+};

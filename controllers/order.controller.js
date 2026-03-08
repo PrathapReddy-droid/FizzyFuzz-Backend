@@ -5,9 +5,10 @@ import paypal from "@paypal/checkout-server-sdk";
 import OrderConfirmationEmail from "../utils/orderEmailTemplate.js";
 import sendEmailFun from "../config/sendEmail.js";
 import decoder from "../middlewares/decoder.js";
-import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId, generateSubOrderId } from "../utils/shiprocketService.js";
+import { cancelShiprocketOrder, createShiprocketOrder, generateOrderId, generateSubOrderId, trackShiprocketOrder } from "../utils/shiprocketService.js";
 import AddressModel from "../models/address.model.js";
 import { reduceWallet } from "../utils/wallets.js";
+import mongoose from "mongoose";
 
 export const createOrderController = async (request, response) => {
     try {
@@ -161,7 +162,7 @@ export const createOrderController = async (request, response) => {
     }
 };
 
-import mongoose from "mongoose";
+
 
 export const cancelOrderController = async (req, res) => {
     try {
@@ -277,6 +278,46 @@ export const cancelOrderController = async (req, res) => {
         });
     }
 };
+
+export const trackMyOrder = async (req, res) => {
+    try {
+        let { sub_id, order_id, user_id, reason } = req.body;
+        const order = await OrderModel.findOne({
+            _id: order_id,
+            "products.sub_id": sub_id
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found"
+            });
+        }
+        const product = order.products?.toObject().find(p => String(p.sub_id).trim() === sub_id);
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found in order"
+            });
+        }
+
+        let shipment_id = product?.shipment.shipment_id
+        let result = await trackShiprocketOrder(shipment_id)
+        return res.status(200).json({
+            success: true,
+            message: "successfully fetched",
+            data : result
+        });
+        
+    } catch (error) {
+        console.error("Cancel Order Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Server error"
+        });
+    }
+}
 
 export async function getOrderDetailsController(request, response) {
     try {
