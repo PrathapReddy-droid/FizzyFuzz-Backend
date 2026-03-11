@@ -12,7 +12,7 @@ import mongoose from "mongoose";
 
 export const createOrderController = async (request, response) => {
     try {
-        const { products, userId, reduction, payment_type = "COD" } = request.body;
+        const { products, userId, reduction, payment_type = "COD" ,full_wallet=false} = request.body;
         console.log(request.body);
 
         if (!products || products.length === 0) {
@@ -65,6 +65,8 @@ export const createOrderController = async (request, response) => {
         const order = new OrderModel({
             orderId,
             userId,
+            reduction,
+            full_wallet,
             products: enrichedProducts,
             sellers_list: Array.from(sellersSet),
             paymentId: request.body.paymentId,
@@ -74,7 +76,7 @@ export const createOrderController = async (request, response) => {
         });
 
         const savedOrder = await order.save();
-        if (payment_type == "COD") {
+        if (payment_type == "COD"|| full_wallet) {
             console.log(savedOrder)
             const products = savedOrder.products
             const address = await AddressModel.findOne({ userId: savedOrder.userId });
@@ -294,6 +296,7 @@ export const trackMyOrder = async (req, res) => {
             });
         }
         const product = order.products?.toObject().find(p => String(p.sub_id).trim() === sub_id);
+        console.log(product)
 
         if (!product) {
             return res.status(404).json({

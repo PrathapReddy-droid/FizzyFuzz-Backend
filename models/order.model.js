@@ -76,7 +76,9 @@ const orderSchema = new mongoose.Schema({
         type: Object,
         ref: 'address'
     },
-    totalAmt: { type: Number, default: 0 }
+    totalAmt: { type: Number, default: 0 },
+    reduction: { type: Number, default: 0 },
+    full_wallet : { type: Boolean , default: false },
 
 }, { timestamps: true });
 

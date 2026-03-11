@@ -11,6 +11,8 @@ import { s3 } from '../utils/awsConfig.js';
 import videoModel from '../models/video.model.js';
 import { createShiprocketReturnOrder, getDeliveryEstimate } from '../utils/shiprocketService.js';
 import UserModel from '../models/user.model.js';
+import OrderModel from '../models/order.model.js';
+import AddressModel from '../models/address.model.js';
 
 
 cloudinary.config({
@@ -1954,6 +1956,7 @@ export async function searchProductController(request, response) {
 
 export const createReturnOrderController = async (req, res) => {
   try {
+    console.log(req.body)
     const { sub_id, order_id, user_id, reason } = req.body;
 
     if (!sub_id || !order_id || !user_id) {

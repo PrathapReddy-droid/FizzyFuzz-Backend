@@ -462,7 +462,7 @@ export const createShiprocketReturnOrder = async ({ order, product, user, addres
       shipping_city: pickup.city?.trim() || "",
       shipping_state: pickup.state?.trim() || "",
       shipping_country: pickup.country || "India",
-      shipping_pincode: pickup.pincode,
+      shipping_pincode: pickup.pin_number,
       shipping_email: pickup.email,
       shipping_phone: pickup.mobile || pickup.phone,
       shipping_isd_code: "91",

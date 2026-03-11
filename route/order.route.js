@@ -7,7 +7,7 @@ const orderRouter = Router();
 
 orderRouter.post('/create',auth,createOrderController)
 orderRouter.post('/cancel-order',auth,cancelOrderController)
-router.post("/order/return", auth, createReturnOrderController);
+orderRouter.post("/order/return", auth, createReturnOrderController);
 orderRouter.post('/track-order',auth,trackMyOrder)
 orderRouter.get("/order-list",auth,getOrderDetailsController)
 orderRouter.get('/create-order-paypal',auth,createOrderPaypalController)
