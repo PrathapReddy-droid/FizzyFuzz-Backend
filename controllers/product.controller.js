@@ -783,7 +783,7 @@ export const approveVideo = async (req, res) => {
     const { id , isApporved } = req.body;
     console.log(req.body);
     
-     const product = await videoModel.findByIdAndUpdate(
+     const video = await videoModel.findByIdAndUpdate(
             id,
             {is_active : isApporved}
         );
@@ -791,14 +791,7 @@ export const approveVideo = async (req, res) => {
       return res.status(404).json({ message: "Video not found" });
     }
 
-    await s3.deleteObject({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: video.s3_key
-    }).promise();
-
-    await video.deleteOne();
-
-    res.json({ success: true, message: "Video deleted" });
+    res.status(200).json({ success: true, message: "Video status updated" });
 
   } catch (err) {
     res.status(500).json({ error: true, message: err.message });
