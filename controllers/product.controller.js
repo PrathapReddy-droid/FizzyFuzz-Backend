@@ -746,7 +746,7 @@ export const getVideoList = async (req, res) => {
     if (user.role == "SELLER") {
       filter.user_id = id
     }else if(user.role == "USER"){
-        filter.status = "Approved"
+        filter.is_status = true
     }
 
     // Fetch data & count in parallel
@@ -778,6 +778,32 @@ export const getVideoList = async (req, res) => {
   }
 };
 
+export const approveVideo = async (req, res) => {
+  try {
+    const { id , isApporved } = req.body;
+    console.log(req.body);
+    
+     const product = await videoModel.findByIdAndUpdate(
+            id,
+            {is_active : isApporved}
+        );
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
+    await s3.deleteObject({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: video.s3_key
+    }).promise();
+
+    await video.deleteOne();
+
+    res.json({ success: true, message: "Video deleted" });
+
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
 
 export const deleteAdminVideo = async (req, res) => {
   try {
