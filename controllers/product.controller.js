@@ -746,7 +746,7 @@ export const getVideoList = async (req, res) => {
     if (user.role == "SELLER") {
       filter.user_id = id
     }else if(user.role == "USER"){
-        filter.is_status = true
+        filter.is_active = true
     }
 
     // Fetch data & count in parallel
