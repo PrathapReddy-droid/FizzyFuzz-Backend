@@ -781,8 +781,6 @@ export const getVideoList = async (req, res) => {
 export const approveVideo = async (req, res) => {
   try {
     const { id , isApporved } = req.body;
-    console.log(req.body);
-    
      const video = await videoModel.findByIdAndUpdate(
             id,
             {is_active : isApporved}

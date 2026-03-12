@@ -25,7 +25,7 @@ productRouter.get('/getAllProductsByThirdLavelCat/:id',getAllProductsByThirdLave
 productRouter.put( "/uploadVideo",auth,uploadVideo.single("video"),uploadVideoController);
 productRouter.delete("/deleteVideo",auth,deleteAdminVideo);
 productRouter.get("/videos",auth,getVideoList);
-productRouter.get("/approve-video",auth,approveVideo);
+productRouter.post("/approve-video",auth,approveVideo);
 productRouter.get("/getAllVideo",getAllAdminVideo);
 productRouter.get('/getAllProductsByThirdLavelCatName',getAllProductsBySubCatName);
 productRouter.get('/getAllProductsByPrice',getAllProductsByPrice);
