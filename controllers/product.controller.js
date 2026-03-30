@@ -126,8 +126,7 @@ export async function createProduct(request, response) {
     try {
         
         const seller = await UserModel.findById(request.body.seller)
-
-        let product = new ProductModel({
+        let productObj = {
             name: request.body.name,
             description: request.body.description,
             images: request.body.images,
@@ -159,7 +158,13 @@ export async function createProduct(request, response) {
             video_url : request.body.video_url,
             shipment_days : request.body.shipment_days,
             product_pincode : request.body.product_pincode
-        });
+        }
+
+        if(seller.role=="ADMIN"){
+            productObj["isApproved"] = true
+            productObj["status"] = "APPROVED"
+        }
+        let product = new ProductModel(productObj);
 
         product = await product.save();
 
