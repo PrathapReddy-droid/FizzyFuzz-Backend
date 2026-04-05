@@ -198,22 +198,24 @@ userSchema.post('findOneAndUpdate', async function (doc) {
 });
 
 
-userSchema.pre('save', async function (next) {
-    // Get the document BEFORE update
-    this._oldDoc = await this.model.findOne(this.getQuery());
+userSchema.pre('save', function (next) {
+    this._wasNew = this.isNew; // track if new user
     next();
 });
 
-userSchema.post('save', async function (doc) {
-    if (!doc) return;
+userSchema.post('save', function (doc) {
+    // Case 1: New user created with verified email
+    if (this._wasNew && doc.verify_email === true) {
+        setImmediate(() => {
+            sendNotification(doc._id, "registered");
+        });
+    }
 
-    const oldStatus = this._oldDoc?.verify_email;
-    const newStatus = doc?.verify_email;
-
-    if (oldStatus !== newStatus) {
-        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
-
-        await sendNotification(doc.userId, "registered");
+    // Case 2: Email verified later via save()
+    if (!this._wasNew && this.isModified('verify_email') && doc.verify_email === true) {
+        setImmediate(() => {
+            sendNotification(doc._id, "registered");
+        });
     }
 });
 const UserModel = mongoose.model("User",userSchema);

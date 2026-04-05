@@ -101,23 +101,35 @@ orderSchema.post('findOneAndUpdate', async function (doc) {
     }
 });
 
-
-orderSchema.pre('save', async function (next) {
-    // Get the document BEFORE update
-    this._oldDoc = await this.model.findOne(this.getQuery());
+orderSchema.pre('save', function (next) {
+    // Track if document is new
+    this._wasNew = this.isNew;
     next();
 });
 
-orderSchema.post('save', async function (doc) {
+orderSchema.post('save', function (doc) {
     if (!doc) return;
 
-    const oldStatus = this._oldDoc?.shipment?.status;
+    const isStatusModified = this.isModified('shipment.status');
     const newStatus = doc?.shipment?.status;
 
-    if (oldStatus !== newStatus) {
-        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
+    // Case 1: New order created
+    if (this._wasNew) {
+        console.log(`New order created with status: ${newStatus}`);
 
-        await sendNotification(doc.userId, newStatus, doc.orderId);
+        setImmediate(() => {
+            sendNotification(doc.userId, newStatus, doc.orderId);
+        });
+        return;
+    }
+
+    // Case 2: Existing order status updated
+    if (isStatusModified) {
+        console.log(`Shipment status updated to: ${newStatus}`);
+
+        setImmediate(() => {
+            sendNotification(doc.userId, newStatus, doc.orderId);
+        });
     }
 });
 

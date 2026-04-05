@@ -49,7 +49,12 @@ export const sendNotification = async (userId, status, orderId) => {
     const response = await admin.messaging().send(message);
 
     console.log("✅ Notification sent:", response);
+    return
   } catch (err) {
     console.error("❌ FCM error:", err.message);
+    if (err.code === 'messaging/registration-token-not-registered') {
+      await User.updateOne({ _id: userId }, { $unset: { fcmToken: "" } });
+    }
+    return
   }
 };
