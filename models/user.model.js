@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sendNotification } from "../utils/notifications";
 
 const userSchema = mongoose.Schema({
     uid: {
@@ -20,6 +21,7 @@ const userSchema = mongoose.Schema({
         required: [true, "Provide mobile"],
         unique: true
     },
+    fcm_token : { type: String } ,
     gst: {
         type: String,
         default: "",
@@ -177,6 +179,43 @@ const userSchema = mongoose.Schema({
 )
 
 
+userSchema.pre('findOneAndUpdate', async function (next) {
+    // Get the document BEFORE update
+    this._oldDoc = await this.model.findOne(this.getQuery());
+    next();
+});
+
+userSchema.post('findOneAndUpdate', async function (doc) {
+    if (!doc) return;
+
+    const oldStatus = this._oldDoc?.verify_email;
+    const newStatus = doc?.verify_email;
+
+    if (oldStatus === false && newStatus === true ) {
+        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
+        await sendNotification(doc.userId, "registered");
+    }
+});
+
+
+userSchema.pre('save', async function (next) {
+    // Get the document BEFORE update
+    this._oldDoc = await this.model.findOne(this.getQuery());
+    next();
+});
+
+userSchema.post('save', async function (doc) {
+    if (!doc) return;
+
+    const oldStatus = this._oldDoc?.verify_email;
+    const newStatus = doc?.verify_email;
+
+    if (oldStatus !== newStatus) {
+        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
+
+        await sendNotification(doc.userId, "registered");
+    }
+});
 const UserModel = mongoose.model("User",userSchema);
 
 export default UserModel

@@ -82,6 +82,44 @@ const orderSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+orderSchema.pre('findOneAndUpdate', async function (next) {
+    // Get the document BEFORE update
+    this._oldDoc = await this.model.findOne(this.getQuery());
+    next();
+});
+
+orderSchema.post('findOneAndUpdate', async function (doc) {
+    if (!doc) return;
+
+    const oldStatus = this._oldDoc?.shipment?.status;
+    const newStatus = doc?.shipment?.status;
+
+    if (oldStatus !== newStatus) {
+        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
+
+        await sendNotification(doc.userId, newStatus, doc.orderId);
+    }
+});
+
+
+orderSchema.pre('save', async function (next) {
+    // Get the document BEFORE update
+    this._oldDoc = await this.model.findOne(this.getQuery());
+    next();
+});
+
+orderSchema.post('save', async function (doc) {
+    if (!doc) return;
+
+    const oldStatus = this._oldDoc?.shipment?.status;
+    const newStatus = doc?.shipment?.status;
+
+    if (oldStatus !== newStatus) {
+        console.log(`Status changed from ${oldStatus} → ${newStatus}`);
+
+        await sendNotification(doc.userId, newStatus, doc.orderId);
+    }
+});
 
 const OrderModel = mongoose.model('orders', orderSchema)
 
