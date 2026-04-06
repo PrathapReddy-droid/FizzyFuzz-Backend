@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sendNotification } from "../utils/notifications";
 
 const orderSchema = new mongoose.Schema({
     orderId: {
