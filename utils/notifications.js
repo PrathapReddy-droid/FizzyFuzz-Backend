@@ -1,6 +1,6 @@
 // notification.js
 import UserModel from "../models/user.model.js";
-import admin from "./firebase";
+import admin from "./firebase.js";
 
 export const sendNotification = async (userId, status, orderId) => {
   try {
