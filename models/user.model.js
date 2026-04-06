@@ -143,6 +143,10 @@ const userSchema = mongoose.Schema({
         type:Boolean,
         default:false
     },
+    deviceInfo :  {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
+    },
     wallet: {
         balance: {
             type: Number,

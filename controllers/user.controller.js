@@ -1243,3 +1243,27 @@ export async function deleteMultiple(request, response) {
     }
 
 }
+
+export async function updateFCMToken(request, response) {
+  try {
+    const userId = request.body?.userId;
+    const token = request.body?.token;
+    const userExist = await UserModel.findById(userId);
+    
+    if (!userExist) {
+        return response.status(400).send("The user cannot be Updated!");
+    }
+    await UserModel.findByIdAndUpdate(userId,{fcm_token:token})
+    return response.json({
+        message: "token updated successfully",
+        error: false,
+        success: true
+    })
+  } catch (error) {
+    return response.status(500).json({
+      message: error.message || "something went wrong while updating token",
+      success: false,
+      error: true
+    });
+  }
+}

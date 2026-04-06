@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import {addReview, authWithGoogle, changePasswordController, deleteMultiple, deleteUser, forgotPasswordController, getAllReviews, getAllUsers, getReviews, loginUserController, logoutController, refreshToken, registerSellerController, registerUserController, removeImageFromCloudinary, resetpassword, toggleLiveController, updateUserDetails, userAvatarController, userDetails, userKYCController, verifyEmailController, verifyForgotPasswordOtp} from '../controllers/user.controller.js';
+import {addReview, authWithGoogle, changePasswordController, deleteMultiple, deleteUser, forgotPasswordController, getAllReviews, getAllUsers, getReviews, loginUserController, logoutController, refreshToken, registerSellerController, registerUserController, removeImageFromCloudinary, resetpassword, toggleLiveController, updateFCMToken, updateUserDetails, userAvatarController, userDetails, userKYCController, verifyEmailController, verifyForgotPasswordOtp} from '../controllers/user.controller.js';
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
 
@@ -28,6 +28,7 @@ userRouter.get('/getAllUsers',getAllUsers);
 userRouter.delete('/deleteMultiple',deleteMultiple);
 userRouter.delete('/deleteUser/:id',deleteUser);
 userRouter.post("/refresh-token",refreshToken);
+userRouter.post("/updateFCM-token",updateFCMToken);
 
 
 export default userRouter
