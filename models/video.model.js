@@ -11,6 +11,10 @@ const videoSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    position: {
+      type: String,
+      trim: true
+    },
     role: {
       type: String,
       trim: true

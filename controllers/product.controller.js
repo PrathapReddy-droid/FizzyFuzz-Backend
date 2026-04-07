@@ -598,7 +598,7 @@ export const uploadVideoController = async (req, res) => {
   let localFilePath;
   try {
     const userId = req.userId;
-    const { title, description, user_id , role } = req.body;
+    const { title, description, user_id , role , position } = req.body;
     const file = req.file;
     let token_data = await decoder(req)
     let user = token_data?.user
@@ -615,7 +615,6 @@ export const uploadVideoController = async (req, res) => {
         message: "Video title is required",
       });
     }
-
     localFilePath = file.path; // store for cleanup
 
     const s3Key = `admin-videos/${Date.now()}-${file.originalname}`;
@@ -646,6 +645,7 @@ export const uploadVideoController = async (req, res) => {
     }
     if(user.role){
         createObject.role = user.role
+        createObject.position = position || "header"
     }
     const video = await videoModel.create(createObject);
 
@@ -738,6 +738,7 @@ export const getVideoList = async (req, res) => {
     // Pagination params
     const page = parseInt(req?.query?.page, 10) || 1;
     const id = req.query.id
+    let position = null
     const limit = parseInt(req?.query?.limit, 10) || 5;
     const skip = (page - 1) * limit;
     let token_data = await decoder(req)
@@ -753,7 +754,7 @@ export const getVideoList = async (req, res) => {
     }else if(user.role == "USER"){
         filter.is_active = true
     }
-
+    if(req?.query?.position) filter.position = req.query.position
     // Fetch data & count in parallel
     const [videos, total] = await Promise.all([
       videoModel
