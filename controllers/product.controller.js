@@ -149,6 +149,8 @@ export async function createProduct(request, response) {
             discount: request.body.discount,
             productRam: request.body.productRam,
             size: request.body.size,
+            fssaiCompliant : request.body.fssaiCompliant,
+            fssaiLicenseNumber : request.body.fssaiLicenseNumber,
             productWeight: request.body.productWeight,
             variants: request.body.variants,
             seller : request.body.seller,

@@ -195,6 +195,14 @@ const productSchema = mongoose.Schema({
         type: String,
         required: true
     },
+    fssaiLicenseNumber: {
+        type: String,
+        required: true
+    },
+    fssaiCompliant: {
+        type: String,
+        required: true
+    },
     isDisplayOnHomeBanner: {
         type: Boolean,
         default: false,
