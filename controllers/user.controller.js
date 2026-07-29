@@ -13,6 +13,7 @@ import  {sendEmail} from '../utils/sendMail.js';
 import decoder from '../middlewares/decoder.js';
 import { s3 } from '../utils/awsConfig.js';
 import { createPickupLocation } from '../utils/shiprocketService.js';
+import { sendOtpSms } from '../utils/sendSMS.js';
 
 cloudinary.config({
     cloud_name: process.env.cloudinary_Config_Cloud_Name,
@@ -352,7 +353,7 @@ export async function authWithGoogle(request, response) {
 
 
 function generateOtp() {
-    return "454545"||Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+    return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
 }
 
 function maskMobile(mobile = "") {
@@ -362,11 +363,6 @@ function maskMobile(mobile = "") {
     return "XXXXXX" + mobile.toString().slice(-4);
 }
 
-// Plug in your actual SMS provider here (Twilio / MSG91 / Fast2SMS etc.)
-async function sendOtpSms(mobile, otp) {
-    console.log(`Sending OTP ${otp} to ${mobile}`);
-    // await smsProvider.send({ to: mobile, message: `Your login OTP is ${otp}. Valid for 5 minutes.` });
-}
 
 export async function loginUserController(request, response) {
     try {
