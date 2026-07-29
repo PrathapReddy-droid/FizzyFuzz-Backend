@@ -147,6 +147,8 @@ const userSchema = mongoose.Schema({
         type: mongoose.Schema.Types.Mixed,
         default: {}
     },
+    login_otp: { type: String, default: "" },
+    login_otp_expiry: { type: Date, default: "" },
     wallet: {
         balance: {
             type: Number,

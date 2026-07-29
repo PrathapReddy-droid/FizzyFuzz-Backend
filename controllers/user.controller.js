@@ -351,21 +351,36 @@ export async function authWithGoogle(request, response) {
 }
 
 
+function generateOtp() {
+    return "454545"||Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+}
+
+function maskMobile(mobile = "") {
+    console.log(mobile,"<<<<<<<<<<<<<<<<<<");
+    
+    if (mobile.length < 4) return mobile;
+    return "XXXXXX" + mobile.toString().slice(-4);
+}
+
+// Plug in your actual SMS provider here (Twilio / MSG91 / Fast2SMS etc.)
+async function sendOtpSms(mobile, otp) {
+    console.log(`Sending OTP ${otp} to ${mobile}`);
+    // await smsProvider.send({ to: mobile, message: `Your login OTP is ${otp}. Valid for 5 minutes.` });
+}
+
 export async function loginUserController(request, response) {
     try {
-        let { email, password , role } = request.body;
-        console.log(role);
-        
+        let { email, password, role } = request.body;
+        if (!role) role = "USER";
+
         const user = await UserModel.findOne({ email: email });
-        if(!role) role = "USER"
-        console.log(user);
         
         if (!user) {
             return response.status(400).json({
                 message: "User not register",
                 error: true,
                 success: false
-            })
+            });
         }
 
         if (user.status !== "Active") {
@@ -373,73 +388,283 @@ export async function loginUserController(request, response) {
                 message: "Contact to admin",
                 error: true,
                 success: false
-            })
+            });
         }
-        if (user.role.toUpperCase()!==role){
+
+        if (user.role.toUpperCase() !== role) {
             return response.status(400).json({
                 message: "user is authorised to login",
                 error: true,
                 success: false
-            })
+            });
         }
+
         if (user.verify_email !== true) {
             return response.status(400).json({
                 message: "Your Email is not verify yet please verify your email first",
                 error: true,
                 success: false
-            })
+            });
         }
 
         const checkPassword = await bcryptjs.compare(password, user.password);
-
         if (!checkPassword) {
             return response.status(400).json({
                 message: "Check your password",
                 error: true,
                 success: false
-            })
+            });
         }
 
+        if (!user.mobile) {
+            return response.status(400).json({
+                message: "No registered mobile number found for this account",
+                error: true,
+                success: false
+            });
+        }
+
+        // ---- generate OTP, store hashed, short expiry ----
+        const otp = generateOtp();
+        const hashedOtp = await bcryptjs.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+        await UserModel.findByIdAndUpdate(user._id, {
+            login_otp: hashedOtp,
+            login_otp_expiry: otpExpiry
+        });
+
+        await sendOtpSms(user.mobile, otp);
+
+        // ---- short-lived token identifying this login attempt ----
+        const sessionToken = jwt.sign(
+            { id: user._id, purpose: "login-otp" },
+            process.env.SECRET_KEY_OTP_TOKEN,
+            { expiresIn: "10m" }
+        );
+
+        return response.json({
+            message: "OTP sent to your registered mobile number",
+            error: false,
+            success: true,
+            otpRequired: true,
+            data: {
+                sessionToken,
+                mobile: maskMobile(user.mobile)
+            }
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        });
+    }
+}
+
+export async function verifyLoginOtpController(request, response) {
+    try {
+        const { sessionToken, otp } = request.body;
+
+        if (!sessionToken || !otp) {
+            return response.status(400).json({
+                message: "Session token and OTP are required",
+                error: true,
+                success: false
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(sessionToken, process.env.SECRET_KEY_OTP_TOKEN);
+        } catch (err) {
+            return response.status(400).json({
+                message: "OTP session expired, please login again",
+                error: true,
+                success: false,
+                sessionExpired: true
+            });
+        }
+
+        if (decoded.purpose !== "login-otp") {
+            return response.status(400).json({
+                message: "Invalid session token",
+                error: true,
+                success: false
+            });
+        }
+
+        const user = await UserModel.findById(decoded.id);
+        if (!user) {
+            return response.status(400).json({
+                message: "User not found",
+                error: true,
+                success: false
+            });
+        }
+
+        if (!user.login_otp || !user.login_otp_expiry) {
+            return response.status(400).json({
+                message: "No OTP request found, please login again",
+                error: true,
+                success: false
+            });
+        }
+
+        if (new Date() > new Date(user.login_otp_expiry)) {
+            return response.status(400).json({
+                message: "OTP expired, please login again",
+                error: true,
+                success: false
+            });
+        }
+
+        const isOtpValid = await bcryptjs.compare(otp, user.login_otp);
+        if (!isOtpValid) {
+            return response.status(400).json({
+                message: "Invalid OTP",
+                error: true,
+                success: false
+            });
+        }
+
+        // clear OTP fields
+        await UserModel.findByIdAndUpdate(user._id, {
+            login_otp: "",
+            login_otp_expiry: "",
+            last_login_date: new Date()
+        });
 
         const accesstoken = await generatedAccessToken(user);
         const refreshToken = await genertedRefreshToken(user);
-
-        const updateUser = await UserModel.findByIdAndUpdate(user?._id, {
-            last_login_date: new Date()
-        })
-
 
         const cookiesOption = {
             httpOnly: true,
             secure: true,
             sameSite: "None"
-        }
-        response.cookie('accessToken', accesstoken, cookiesOption)
-        response.cookie('refreshToken', refreshToken, cookiesOption)
+        };
+        response.cookie('accessToken', accesstoken, cookiesOption);
+        response.cookie('refreshToken', refreshToken, cookiesOption);
 
-        // let userData = {
-        //     isLiveButtonEnabled : userData.isLiveEnabled,
-
-        // }
         return response.json({
             message: "Login successfully",
             error: false,
             success: true,
             data: {
                 accesstoken,
-                refreshToken,
-                
+                refreshToken
             }
-        })
+        });
+
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,
             error: true,
             success: false
-        })
+        });
     }
 }
 
+export async function resendLoginOtpController(request, response) {
+    try {
+        const { sessionToken } = request.body;
+
+        if (!sessionToken) {
+            return response.status(400).json({
+                message: "Session token is required",
+                error: true,
+                success: false
+            });
+        }
+
+        let decoded;
+        try {
+            // ignoreExpiration: allow resend even if the 10-min window lapsed
+            decoded = jwt.verify(sessionToken, process.env.SECRET_KEY_OTP_TOKEN, {
+                ignoreExpiration: true
+            });
+        } catch (err) {
+            // token is malformed / wrong signature — this one really is dead
+            return response.status(400).json({
+                message: "Invalid session, please login again",
+                error: true,
+                success: false
+            });
+        }
+
+        if (decoded.purpose !== "login-otp") {
+            return response.status(400).json({
+                message: "Invalid session, please login again",
+                error: true,
+                success: false
+            });
+        }
+
+        // Hard cap: don't allow resurrecting a session forever.
+        // originalIat is the very first token's issued-at time (set below on first resend).
+        const originalIat = decoded.originalIat || decoded.iat;
+        const MAX_SESSION_AGE_MS = 30 * 60 * 1000; // 30 min from first OTP request
+        if (Date.now() - originalIat * 1000 > MAX_SESSION_AGE_MS) {
+            return response.status(400).json({
+                message: "Login session expired, please login again",
+                error: true,
+                success: false
+            });
+        }
+
+        const user = await UserModel.findById(decoded.id);
+        if (!user) {
+            return response.status(400).json({
+                message: "User not found",
+                error: true,
+                success: false
+            });
+        }
+
+        if (!user.status || user.status !== "Active") {
+            return response.status(400).json({
+                message: "Contact to admin",
+                error: true,
+                success: false
+            });
+        }
+
+        // fresh OTP
+        const otp = generateOtp();
+        const hashedOtp = await bcryptjs.hash(otp, 10);
+        await UserModel.findByIdAndUpdate(user._id, {
+            login_otp: hashedOtp,
+            login_otp_expiry: new Date(Date.now() + 5 * 60 * 1000)
+        });
+
+        await sendOtpSms(user.mobile, otp);
+
+        // reissue sessionToken with new 10-min expiry, carrying original issue time forward
+        const newSessionToken = jwt.sign(
+            { id: user._id, purpose: "login-otp", originalIat },
+            process.env.SECRET_KEY_OTP_TOKEN,
+            { expiresIn: "10m" }
+        );
+
+        return response.json({
+            message: "OTP resent",
+            error: false,
+            success: true,
+            data: {
+                sessionToken: newSessionToken,
+                mobile: maskMobile(user.mobile)
+            }
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        });
+    }
+}
 
 
 //logout controller
