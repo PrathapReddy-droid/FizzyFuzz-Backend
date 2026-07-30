@@ -175,6 +175,12 @@ const productSchema = mongoose.Schema({
             required: true
         }
     ],
+    fssaiimages: [
+        {
+            type: String,
+            required: true
+        }
+    ],
     bannerTitleName: {
         type: String,
         default: '',

@@ -72,6 +72,52 @@ export async function uploadImages(req, res) {
   }
 }
 
+export async function uploadFssaiImages(req, res) {
+  try {
+    if (!req.files || !req.files.length) {
+      return res.status(400).json({ message: "No images received" });
+    }
+
+    const uploadedImages = [];
+
+    for (const file of req.files) {
+      if (!file.buffer) {
+        throw new Error("File buffer missing — multer memoryStorage not used");
+      }
+
+      // Optional validation
+      if (!file.mimetype.startsWith("image/")) {
+        throw new Error("Only image files are allowed");
+      }
+
+      const s3Key = `product-fssai-images/${Date.now()}-${file.originalname}`;
+
+      await s3.upload({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: s3Key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }).promise();
+
+      uploadedImages.push(
+        `https://d30jo9u7kdxiae.cloudfront.net/${s3Key}`
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      images: uploadedImages,
+    });
+
+  } catch (error) {
+    console.error("S3 Image Upload Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: error.message || error,
+    });
+  }
+}
 
 var bannerImage = [];
 export async function uploadBannerImages(req, res) {
@@ -129,7 +175,7 @@ export async function createProduct(request, response) {
         let productObj = {
             name: request.body.name,
             description: request.body.description,
-            images: request.body.images,
+            images: [...request.body.images,...request.body.fssaiImages],
             bannerimages: request.body.bannerimages,
             bannerTitleName: request.body.bannerTitleName,
             isDisplayOnHomeBanner: request.body.isDisplayOnHomeBanner,
@@ -151,6 +197,7 @@ export async function createProduct(request, response) {
             size: request.body.size,
             fssaiCompliant : request.body.fssaiCompliant,
             fssaiLicenseNumber : request.body.fssaiLicenseNumber,
+            fssaiimages: request.body.fssaiImages,
             productWeight: request.body.productWeight,
             variants: request.body.variants,
             seller : request.body.seller,
@@ -1308,6 +1355,7 @@ export async function updateProduct(request, response) {
                 subCat: request.body.subCat,
                 description: request.body.description,
                 bannerimages: request.body.bannerimages,
+                fssaiimages: request.body.fssaiImages,
                 bannerTitleName: request.body.bannerTitleName,
                 isDisplayOnHomeBanner: request.body.isDisplayOnHomeBanner,
                 images: request.body.images,
