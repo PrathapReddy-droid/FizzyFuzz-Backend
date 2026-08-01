@@ -13,6 +13,7 @@ import { createShiprocketReturnOrder, getDeliveryEstimate } from '../utils/shipr
 import UserModel from '../models/user.model.js';
 import OrderModel from '../models/order.model.js';
 import AddressModel from '../models/address.model.js';
+import PricingRuleModel from '../models/PricingRuleModel.js';
 
 
 cloudinary.config({
@@ -241,6 +242,87 @@ export async function createProduct(request, response) {
             error: true,
             success: false
         })
+    }
+}
+
+export async function getPricingCategories(request, response) {
+    try {
+        const pricingRules = await PricingRuleModel
+            .find({ categoryName: { $exists: true, $ne: "" } })
+            .select("categoryName")
+            .sort({ categoryName: 1 });
+
+        const categories = pricingRules.map(rule => ({
+            _id: rule._id,
+            categoryName: rule.categoryName,
+        }));
+
+        return response.status(200).json({
+            message: "Pricing categories fetched successfully",
+            error: false,
+            success: true,
+            data: categories,
+        });
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false,
+        });
+    }
+}
+
+// Fetches the rate details for one pricing rule by its own _id.
+// (Not by a product's category id — this collection isn't a child of the
+// product category tree, it's its own standalone list.)
+export async function getPricingRates(request, response) {
+    try {
+        const { id } = request.query;
+
+        if (!id) {
+            return response.status(400).json({
+                message: "id is required",
+                error: true,
+                success: false
+            });
+        }
+
+        let pricingRule = await PricingRuleModel.findById(id);
+
+        if (!pricingRule) {
+            // Fallback if this specific rule was deleted after the dropdown loaded
+            return response.status(200).json({
+                message: "Using system default pricing rates",
+                error: false,
+                success: true,
+                data: {
+                    commissionPercent: 10,
+                    paymentGatewayPercent: 2,
+                    gstPercent: 18,
+                    shippingFee: 40
+                }
+            });
+        }
+
+        return response.status(200).json({
+            message: "Pricing rates fetched successfully",
+            error: false,
+            success: true,
+            data: {
+                categoryName: pricingRule.categoryName,
+                commissionPercent: pricingRule.commissionPercent,
+                paymentGatewayPercent: pricingRule.paymentGatewayPercent,
+                gstPercent: pricingRule.gstPercent,
+                shippingFee: pricingRule.shippingFee
+            }
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        });
     }
 }
 
