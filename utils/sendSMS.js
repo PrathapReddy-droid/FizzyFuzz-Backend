@@ -10,7 +10,7 @@ export async function sendOtpSms(mobile, otp) {
         key: process.env.PING4SMS_API_KEY,
         route: '2', // '2' = OTP/transactional route on most Ping4sms-family panels — confirm exact route code in your dashboard
         sender: process.env.PING4SMS_SENDER_ID,
-        number: "+917012172355",
+        number: "+919505597205",
         sms: `Your OTP is ${otp}. Valid for 5 minutes. Do not share this with anyone.`,
         templateid: process.env.PING4SMS_DLT_TEMPLATE_ID
     });
