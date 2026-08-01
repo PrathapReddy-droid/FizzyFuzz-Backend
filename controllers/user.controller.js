@@ -369,7 +369,7 @@ export async function loginUserController(request, response) {
         let { email, password, role } = request.body;
         if (!role) role = "USER";
 
-        const user = await UserModel.findOne({ email: email });
+        const user = await UserModel.findOne({ $or : [{email: email},{mobile:email}] });
         
         if (!user) {
             return response.status(400).json({
