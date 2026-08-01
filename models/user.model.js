@@ -58,10 +58,6 @@ const userSchema = mongoose.Schema({
         type: String,
         default: ""
     },
-    mobile: {
-        type: Number,
-        default: null
-    },
     verify_email: {
         type: Boolean,
         default: false
