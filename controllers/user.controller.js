@@ -366,10 +366,10 @@ function maskMobile(mobile = "") {
 
 export async function loginUserController(request, response) {
     try {
-        let { email, password, role } = request.body;
+        let { email, password,mobile, role } = request.body;
         if (!role) role = "USER";
-
-        const user = await UserModel.findOne({ $or : [{email: email},{mobile:email}] });
+        
+        const user = await UserModel.findOne({ $or : [{email: email},{mobile:mobile.replace("+91","")}] });
         
         if (!user) {
             return response.status(400).json({

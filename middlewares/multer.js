@@ -6,7 +6,6 @@ const storage = multer.diskStorage({
         cb(null, "uploads");
     },
     filename: function (req, file, cb) {
-        console.log(file.originalname)
         cb(null, `${Date.now()}_${file.originalname}`);
         //imagesArr.push(`${Date.now()}_${file.originalname}`)
     },

@@ -10,7 +10,7 @@ export async function sendOtpSms(mobile, otp) {
         key: process.env.PING4SMS_API_KEY,
         route: '2', // '2' = OTP/transactional route on most Ping4sms-family panels — confirm exact route code in your dashboard
         sender: process.env.PING4SMS_SENDER_ID,
-        number: "7012172355",
+        number: "+917012172355",
         sms: `Your OTP is ${otp}. Valid for 5 minutes. Do not share this with anyone.`,
         templateid: process.env.PING4SMS_DLT_TEMPLATE_ID
     });
@@ -21,7 +21,6 @@ export async function sendOtpSms(mobile, otp) {
         });
 
         // response is typically plain text or simple JSON depending on account — log first, then branch
-        console.log('PING4SMS response:', response.data,response);
         return response.data;
     } catch (error) {
         console.error('PING4SMS error:', error?.response?.data || error.message);
