@@ -403,14 +403,14 @@ export async function loginUserController(request, response) {
             });
         }
 
-        const checkPassword = await bcryptjs.compare(password, user.password);
-        if (!checkPassword) {
-            return response.status(400).json({
-                message: "Check your password",
-                error: true,
-                success: false
-            });
-        }
+        // const checkPassword = await bcryptjs.compare(password, user.password);
+        // if (!checkPassword) {
+        //     return response.status(400).json({
+        //         message: "Check your password",
+        //         error: true,
+        //         success: false
+        //     });
+        // }
 
         if (!user.mobile) {
             return response.status(400).json({
