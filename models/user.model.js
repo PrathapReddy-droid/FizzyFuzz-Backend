@@ -38,10 +38,10 @@ const userSchema = mongoose.Schema({
         type: String,
         default: ""
     },
-    password: {
-        type: String,
-        required: [true, "Provide password"]
-    },
+    // password: {
+    //     type: String,
+    //     required: [true, "Provide password"]
+    // },
     avatar: {
         type: String,
         default: ""
@@ -143,6 +143,8 @@ const userSchema = mongoose.Schema({
         type: mongoose.Schema.Types.Mixed,
         default: {}
     },
+    register_otp: { type: String, default: "" },
+    register_otp_expiry: { type: Date, default: Date.now },
     login_otp: { type: String, default: "" },
     login_otp_expiry: { type: Date, default: "" },
     wallet: {

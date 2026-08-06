@@ -2,7 +2,6 @@ import UserModel from '../models/user.model.js'
 import bcryptjs from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import sendEmailFun from '../config/sendEmail.js';
-import VerificationEmail from '../utils/verifyEmailTemplate.js';
 import generatedAccessToken from '../utils/generatedAccessToken.js';
 import genertedRefreshToken from '../utils/generatedRefreshToken.js';
 
@@ -35,231 +34,348 @@ export const generateUniqueFFId = async (UserModel) => {
   return uid;
 };
 
+
+
 export async function registerUserController(request, response) {
     try {
-        let user;
-
-        const { name, email, password , mobile } = request.body;
-        if ( !name || !email || !password || !mobile ) {
+        const { name, email, mobile } = request.body;
+        if (!name || !email || !mobile) {
             return response.status(400).json({
-                message: "provide email, name, password and mobile",
+                message: "provide name, email and mobile",
                 error: true,
                 success: false
-            })
+            });
         }
 
-        user = await UserModel.findOne({ email: email , isConfirmed : true });
+        const cleanMobile = mobile.replace("+91", "");
+
+        let user = await UserModel.findOne({
+            $or: [{ email, isConfirmed: true }, { mobile: cleanMobile, isConfirmed: true }]
+        });
 
         if (user) {
             return response.json({
-                message: "User already Registered with this email",
+                message: "User already Registered with this email or mobile",
                 error: true,
                 success: false
-            })
+            });
         }
 
-        user = await UserModel.findOne({ email: email , isConfirmed : false });
+        // Existing but unconfirmed — resend a fresh OTP instead of creating a duplicate
+        user = await UserModel.findOne({ email, isConfirmed: false });
+
+        const otp = generateOtp();
+        const hashedOtp = await bcryptjs.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
         if (user) {
-            await sendEmail(user.otp,user.email,user.name)
-            const user_token = jwt.sign(
-                    { email: user.email, id: user._id },
-                    process.env.JSON_WEB_TOKEN_SECRET_KEY
-                );
-            return response.json({
-                success: true,
-                error: false,
-                message: "User already registered successfully!",
-                token: user_token, // Optional: include this if needed for verification
-            })
+            user.mobile = cleanMobile;
+            user.name = name;
+            user.register_otp = hashedOtp;
+            user.register_otp_expiry = otpExpiry;
+            await user.save();
+        } else {
+            user = new UserModel({
+                uid: await generateUniqueFFId(UserModel),
+                email,
+                mobile: cleanMobile,
+                name,
+                register_otp: hashedOtp,
+                register_otp_expiry: otpExpiry,
+                isConfirmed: false
+            });
+            await user.save();
         }
 
-        // const verifyCode = "123456";
-        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
-        await sendEmail(verifyCode,email,name)
+        await sendOtpSms(user.mobile, otp);
 
-
-        const salt = await bcryptjs.genSalt(10);
-        const hashPassword = await bcryptjs.hash(password, salt);
-        let userObject = {
-            uid : await generateUniqueFFId(UserModel),
-            email: email,
-            password: hashPassword,
-            name: name,
-            otp: verifyCode,
-            otpExpires: Date.now() + 600000,
-            isConfirmed: false
-        }
-        if(mobile) userObject.mobile = mobile 
-        user = new UserModel(userObject);
-
-        await user.save();
-
-        // Send verification email
-        await sendEmailFun({
-            sendTo: email,
-            subject: "Verify email from Ecommerce App",
-            text: "",
-            html: VerificationEmail(name, verifyCode)
-        })
-
-
-        // Create a JWT token for verification purposes
-        const token = jwt.sign(
-            { email: user.email, id: user._id },
-            process.env.JSON_WEB_TOKEN_SECRET_KEY
+        const sessionToken = jwt.sign(
+            { id: user._id, purpose: "register-otp" },
+            process.env.SECRET_KEY_OTP_TOKEN,
+            { expiresIn: "10m" }
         );
-
 
         return response.status(200).json({
             success: true,
             error: false,
-            message: "User registered successfully! ",
-            token: token, // Optional: include this if needed for verification
+            message: "OTP sent to your registered mobile number",
+            data: {
+                sessionToken,
+                mobile: maskMobile(user.mobile)
+            }
         });
-
-
 
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,
             error: true,
             success: false
-        })
+        });
+    }
+}
+
+export async function verifyRegisterOtpController(request, response) {
+    try {
+        const { sessionToken, otp } = request.body;
+
+        if (!sessionToken || !otp) {
+            return response.status(400).json({
+                message: "Session token and OTP are required",
+                error: true,
+                success: false
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(sessionToken, process.env.SECRET_KEY_OTP_TOKEN);
+        } catch (err) {
+            return response.status(400).json({
+                message: "OTP session expired, please register again",
+                error: true,
+                success: false,
+                sessionExpired: true
+            });
+        }
+
+        if (decoded.purpose !== "register-otp") {
+            return response.status(400).json({
+                message: "Invalid session token",
+                error: true,
+                success: false
+            });
+        }
+
+        const user = await UserModel.findById(decoded.id);
+        if (!user) {
+            return response.status(400).json({
+                message: "User not found",
+                error: true,
+                success: false
+            });
+        }
+
+        if (!user.register_otp || !user.register_otp_expiry) {
+            return response.status(400).json({
+                message: "No OTP request found, please register again",
+                error: true,
+                success: false
+            });
+        }
+
+        if (new Date() > new Date(user.register_otp_expiry)) {
+            return response.status(400).json({
+                message: "OTP expired, please register again",
+                error: true,
+                success: false
+            });
+        }
+
+        const isOtpValid = await bcryptjs.compare(otp, user.register_otp);
+        if (!isOtpValid) {
+            return response.status(400).json({
+                message: "Invalid OTP",
+                error: true,
+                success: false
+            });
+        }
+
+        user.register_otp = "";
+        user.register_otp_expiry = "";
+        user.verify_email = true;
+        user.isConfirmed = true;
+        await user.save();
+
+        const accesstoken = await generatedAccessToken(user);
+        const refreshToken = await genertedRefreshToken(user);
+
+        const cookiesOption = {
+            httpOnly: true,
+            secure: true,
+            sameSite: "None"
+        };
+        response.cookie('accessToken', accesstoken, cookiesOption);
+        response.cookie('refreshToken', refreshToken, cookiesOption);
+
+        return response.json({
+            message: "Registration verified successfully",
+            error: false,
+            success: true,
+            data: { accesstoken, refreshToken }
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        });
+    }
+}
+
+export async function resendRegisterOtpController(request, response) {
+    try {
+        const { sessionToken } = request.body;
+
+        if (!sessionToken) {
+            return response.status(400).json({
+                message: "Session token is required",
+                error: true,
+                success: false
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(sessionToken, process.env.SECRET_KEY_OTP_TOKEN, {
+                ignoreExpiration: true
+            });
+        } catch (err) {
+            return response.status(400).json({
+                message: "Invalid session, please register again",
+                error: true,
+                success: false
+            });
+        }
+
+        if (decoded.purpose !== "register-otp") {
+            return response.status(400).json({
+                message: "Invalid session, please register again",
+                error: true,
+                success: false
+            });
+        }
+
+        const originalIat = decoded.originalIat || decoded.iat;
+        const MAX_SESSION_AGE_MS = 30 * 60 * 1000;
+        if (Date.now() - originalIat * 1000 > MAX_SESSION_AGE_MS) {
+            return response.status(400).json({
+                message: "Registration session expired, please register again",
+                error: true,
+                success: false
+            });
+        }
+
+        const user = await UserModel.findById(decoded.id);
+        if (!user) {
+            return response.status(400).json({
+                message: "User not found",
+                error: true,
+                success: false
+            });
+        }
+
+        const otp = generateOtp();
+        const hashedOtp = await bcryptjs.hash(otp, 10);
+        user.register_otp = hashedOtp;
+        user.register_otp_expiry = new Date(Date.now() + 5 * 60 * 1000);
+        await user.save();
+
+        await sendOtpSms(user.mobile, otp);
+
+        const newSessionToken = jwt.sign(
+            { id: user._id, purpose: "register-otp", originalIat },
+            process.env.SECRET_KEY_OTP_TOKEN,
+            { expiresIn: "10m" }
+        );
+
+        return response.json({
+            message: "OTP resent",
+            error: false,
+            success: true,
+            data: {
+                sessionToken: newSessionToken,
+                mobile: maskMobile(user.mobile)
+            }
+        });
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        });
     }
 }
 
 export async function registerSellerController(request, response) {
     try {
-        let user;
-
-        const { name, email, password , mobile } = request.body;
-        if (!name || !email || !password || !mobile ) {
+        const { name, email, mobile } = request.body;
+        if (!name || !email || !mobile) {
             return response.status(400).json({
-                message: "provide email, name, password",
+                message: "provide name, email and mobile",
                 error: true,
                 success: false
-            })
+            });
         }
 
-        user = await UserModel.findOne({ email: email });
-        const salt = await bcryptjs.genSalt(10);
-        const hashPassword = await bcryptjs.hash(password, salt);
-        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
-        let expire = Date.now() + 600000
+        const cleanMobile = mobile.replace("+91", "");
 
-        if (user?.isConfirmed===true) {
+        let user = await UserModel.findOne({
+            $or: [{ email, isConfirmed: true }, { mobile: cleanMobile, isConfirmed: true }]
+        });
+
+        if (user) {
             return response.json({
-                message: "User already Registered with this email",
+                message: "User already Registered with this email or mobile",
                 error: true,
                 success: false
-            })
+            });
         }
-        else if (user?.isConfirmed===false) {
-            sendEmail(verifyCode,user.email,user.name).then(async res=>{
-                await UserModel.findByIdAndUpdate(user._id,{$set:{otpExpires:expire,otp:verifyCode,password:hashPassword}})
-                const user_token = jwt.sign(
-                        { email: user.email, id: user._id },
-                        process.env.JSON_WEB_TOKEN_SECRET_KEY
-                    );
 
-                return response.json({
-                    success: true,
-                    error: false,
-                    message: "user re-registered successfully!",
-                    token: user_token, // Optional: include this if needed for verification
-                })
-            }).catch(err=>{
-                console.log(err);
-                
-                return response.json({
-                    success: false,
-                    error: true,
-                    message: "OTP Generation Failed",
-                })
-            })
-        }else{
-            // const verifyCode = "123456";
+        // Existing but unconfirmed — resend a fresh OTP instead of creating a duplicate
+        user = await UserModel.findOne({ email, isConfirmed: false });
 
-            
-            let userObject = {
-                uid : await generateUniqueFFId(UserModel),
-                email: email,
-                password: hashPassword,
-                name: name,
-                otp: verifyCode,
-                otpExpires: expire,
-                isConfirmed: false,
-                role : "SELLER",
-                gst : "",
-                business : ""
-            }
-            if(mobile) userObject.mobile = mobile 
-            user = new UserModel(userObject);
+        const otp = generateOtp();
+        const hashedOtp = await bcryptjs.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
+        if (user) {
+            user.mobile = cleanMobile;
+            user.name = name;
+            user.register_otp = hashedOtp;
+            user.register_otp_expiry = otpExpiry;
             await user.save();
-            sendEmail(verifyCode,user.email,user.name).then(async res=>{
-                const token = jwt.sign(
-                    { email: user.email, id: user._id },
-                    process.env.JSON_WEB_TOKEN_SECRET_KEY
-                );
-
-                return response.status(200).json({
-                    success: true,
-                    error: false,
-                    message: "User registered successfully! ",
-                    token: token, // Optional: include this if needed for verification
-                });
-
-            }).catch(err=>{
-                console.log(err);
-                return response.json({
-                    success: false,
-                    error: true,
-                    message: "OTP Generation Failed",
-                })
-            })
-        }
-    } catch (error) {
-        return response.status(500).json({
-            message: error.message || error,
-            error: true,
-            success: false
-        })
-    }
-}
-
-export async function verifyEmailController(request, response) {
-    try {
-        const { email, otp } = request.body;
-        
-        const user = await UserModel.findOne({ email: email });
-        if (!user) {
-            return response.status(400).json({ error: true, success: false, message: "OTP expired" });
-        }
-
-        const isCodeValid = user.otp === otp;
-        const isNotExpired = user.otpExpires > Date.now();
-
-        if (isCodeValid && isNotExpired) {
-            user.verify_email = true;
-            user.otp = null;
-            user.otpExpires = null;
-            user.isConfirmed = true
-            await user.save();
-            return response.status(200).json({ error: false, success: true, message: "Email verified successfully" });
-        } else if (!isCodeValid) {
-            return response.status(400).json({ error: true, success: false, message: "Invalid OTP" });
         } else {
-            return response.status(400).json({ error: true, success: false, message: "OTP expired" });
+            user = new UserModel({
+                uid: await generateUniqueFFId(UserModel),
+                email,
+                mobile: cleanMobile,
+                name,
+                register_otp: hashedOtp,
+                register_otp_expiry: otpExpiry,
+                isConfirmed: false,
+                role: "SELLER",
+                gst: "",
+                business: ""
+            });
+            await user.save();
         }
+
+        await sendOtpSms(user.mobile, otp);
+
+        const sessionToken = jwt.sign(
+            { id: user._id, purpose: "register-otp" },
+            process.env.SECRET_KEY_OTP_TOKEN,
+            { expiresIn: "10m" }
+        );
+
+        return response.status(200).json({
+            success: true,
+            error: false,
+            message: "OTP sent to your registered mobile number",
+            data: {
+                sessionToken,
+                mobile: maskMobile(user.mobile)
+            }
+        });
 
     } catch (error) {
         return response.status(500).json({
             message: error.message || error,
             error: true,
             success: false
-        })
+        });
     }
 }
 
