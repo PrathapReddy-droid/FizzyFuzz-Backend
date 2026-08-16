@@ -201,6 +201,13 @@ const productSchema = mongoose.Schema({
         type: String,
         required: true
     },
+    returnDays: {
+        type: String
+    },
+    isReturnable : {
+        type: String,
+        required: true
+    },
     fssaiLicenseNumber: {
         type: String,
         required: true

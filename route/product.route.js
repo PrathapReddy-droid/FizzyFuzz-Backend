@@ -26,7 +26,7 @@ productRouter.get('/getPenindgProductsBySubCatId/:id',getPendingProductsBySubCat
 productRouter.get('/getAllProductsBySubCatName',getAllProductsBySubCatName);
 productRouter.get('/getAllProductsByThirdLavelCat/:id',getAllProductsByThirdLavelCatId);
 productRouter.put( "/uploadVideo",auth,uploadVideo.single("video"),uploadVideoController);
-productRouter.delete("/deleteVideo",auth,deleteAdminVideo);
+productRouter.post("/deleteVideo",auth,deleteAdminVideo);
 productRouter.get("/videos",auth,getVideoList);
 productRouter.post("/approve-video",auth,approveVideo);
 productRouter.get("/getAllVideo",getAllAdminVideo);
