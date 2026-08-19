@@ -1,14 +1,16 @@
 import { Router } from 'express'
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
-import { addBanner, deleteBanner, getBanner, getBanners, updatedBanner, uploadImages } from '../controllers/bannerV1.controller.js';
+import { addBanner, deleteBanner, getBanner, getBanners, getOfferTiming, updatedBanner, updateOfferTiming, uploadImages } from '../controllers/bannerV1.controller.js';
 import { removeImageFromCloudinary } from '../controllers/category.controller.js';
 
-const bannerV1Router = Router();
+const  bannerV1Router = Router();
 
 bannerV1Router.post('/uploadImages',auth,upload.array('images',5),uploadImages);
 bannerV1Router.post('/add',auth,addBanner);
 bannerV1Router.get('/',getBanners);
+bannerV1Router.get('/offertimings',getOfferTiming);
+bannerV1Router.post('/offertimings',updateOfferTiming);
 bannerV1Router.get('/:id',getBanner);
 bannerV1Router.delete('/deteleImage',auth,removeImageFromCloudinary);
 bannerV1Router.delete('/:id',auth,deleteBanner);

@@ -3,6 +3,7 @@ import BannerV1Model from '../models/bannerV1.model.js';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import { s3 } from '../utils/awsConfig.js';
+import ConfigModel from '../models/configurations.model.js';
 
 
 cloudinary.config({
@@ -141,6 +142,64 @@ export async function getBanners(request, response) {
     }
 }
 
+export async function updateOfferTiming(request, response) {
+    try {
+        let {expiresAt,isEnabled} = request.body
+        console.log(isEnabled);
+        const updater = {}
+        if(isEnabled)updater.isEnabled = isEnabled
+        if(expiresAt)updater.expiresAt = expiresAt
+        console.log(updater);
+        
+        const data = await ConfigModel.findOneAndUpdate(
+            { type: "expiry_time" },
+            { $set: updater },
+            { new: true }
+        );
+
+        return response.status(200).json({
+            error: false,
+            success: true
+        })
+
+    } catch (error) {
+        
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
+
+export async function getOfferTiming(request, response) {
+    try {
+       
+        let offer_time = await ConfigModel.findOne({type:"expiry_time"})
+        console.log("offer_time",offer_time);
+        
+        if(!offer_time) {
+            response.status(500).json({
+                error: false,
+                success: true,
+                data : {isEnabled:false}
+            })
+        }
+
+        return response.status(200).json({
+            error: false,
+            success: true,
+            data: offer_time
+        })
+
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false
+        })
+    }
+}
 
 //get single category
 
