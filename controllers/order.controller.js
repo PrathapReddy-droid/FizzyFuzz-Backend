@@ -86,47 +86,6 @@ export const createOrderController = async (request, response) => {
                     const sub_id = await generateSubOrderId()
                     const product = await ProductModel.findById(item.productId);
                     item.sub_id = sub_id
-                    const pickup = await UserModel.findById(product.seller);
-                    const shiprocketRes = await createShiprocketOrder({
-                        pickup,
-                        product: item,
-                        order: savedOrder,
-                        address,
-                        user
-                    });
-                    console.log(shiprocketRes);
-                    if (shiprocketRes.success) {
-                        const sr = shiprocketRes.data;
-                        let data = await OrderModel.updateOne(
-                            { _id: order._id },
-                            {
-                                $set: {
-                                    "products.$[p].sub_id": item.sub_id,
-                                    "products.$[p].shipment": {
-                                        shiprocket_order_id: sr?.order_id,
-                                        shipment_id: sr?.shipment_id,
-                                        status: "CONFIRMED",
-                                        raw_response: sr
-                                    }
-                                }
-                            },
-                            {
-                                arrayFilters: [
-                                    { "p.productId": String(item.productId) }
-                                ]
-                            }
-                        );
-
-                        console.log(data);
-
-
-
-                    } else {
-                        console.error("Shiprocket Error:", shiprocketRes.message);
-                        await OrderModel.findByIdAndUpdate(order._id, {
-                            "mischief": "something went wrong in shipment"
-                        });
-                    }
                     await ProductModel.findByIdAndUpdate(product._id, {
                         $inc: {
                             countInStock: -item.quantity,
@@ -203,29 +162,9 @@ export const cancelOrderController = async (req, res) => {
             });
         }
 
-        // ❗ shipment check
-        if (!product?.shipment?.shiprocket_order_id) {
-            return res.status(400).json({
-                success: false,
-                message: "Shipment not created for this order"
-            });
-        }
-
-        // 🚀 Cancel shipment
-        const cancelRes = await cancelShiprocketOrder(product.shipment.shiprocket_order_id);
-
-        if (!cancelRes?.success) {
-            return res.status(400).json({
-                success: false,
-                message: cancelRes?.message || "Shiprocket cancel failed",
-                error: cancelRes?.error
-            });
-        }
-
         // update local product status
         product.status = "CANCELLED";
         product.shipment.status = "CANCELLED";
-        product.shipment.cancel_resp = cancelRes;
 
         // move product to cancelled_products
         await OrderModel.updateOne(
