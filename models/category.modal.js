@@ -6,6 +6,10 @@ const categorySchema = mongoose.Schema({
         required:true,
         trim: true
     },
+    isFssaiRequired : {
+        type : Boolean,
+        required : false
+    },
     images:[
         {
             type:String,

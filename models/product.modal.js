@@ -178,7 +178,7 @@ const productSchema = mongoose.Schema({
     fssaiimages: [
         {
             type: String,
-            required: true
+            // required: true
         }
     ],
     bannerTitleName: {
@@ -210,11 +210,11 @@ const productSchema = mongoose.Schema({
     },
     fssaiLicenseNumber: {
         type: String,
-        required: true
+        required: false
     },
     fssaiCompliant: {
         type: String,
-        required: true
+        required: false
     },
     isDisplayOnHomeBanner: {
         type: Boolean,

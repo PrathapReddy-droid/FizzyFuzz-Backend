@@ -76,6 +76,7 @@ export async function createCategory(request, response) {
             images: request.body.images,
             parentId: request.body.parentId,
             parentCatName: request.body.parentCatName,
+            isFssaiRequired : request.body.isFssaiRequired || false
         });
 
         if (!category) {
