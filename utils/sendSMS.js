@@ -15,7 +15,7 @@ export async function sendOtpSms(mobile, otp) {
     route: process.env.PING4SMS_ROUTE,
     sender: process.env.PING4SMS_SENDER_ID,
     number: formattedNumber,
-    sms: `Your OTP is ${otp}. Valid for 5 minutes. Do not share this with anyone.`,
+    sms: `Dear Customer, ${otp} is your verification code -PNGOTP`,
     templateid: process.env.PING4SMS_DLT_TEMPLATE_ID,
 });
 
@@ -23,13 +23,8 @@ export async function sendOtpSms(mobile, otp) {
         const url =
             `${process.env.PING4SMS_BASE_URL}?${params.toString()}`;
 
-        console.log("PING4SMS REQUEST:", {
-            number: formattedNumber,
-            sender: process.env.PING4SMS_SENDER_ID,
-            templateid: process.env.PING4SMS_DLT_TEMPLATE_ID,
-            sms: smsMessage,
-        });
-
+        console.log(url);
+        
         const response = await axios.get(url, {
             timeout: 8000,
         });

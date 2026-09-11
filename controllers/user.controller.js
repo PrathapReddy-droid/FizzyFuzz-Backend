@@ -469,7 +469,7 @@ export async function authWithGoogle(request, response) {
 
 
 function generateOtp() {
-    return "123456"||Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+    return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
 }
 
 function maskMobile(mobile = "") {
