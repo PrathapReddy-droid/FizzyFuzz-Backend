@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import {addReview, authWithGoogle, changePasswordController, deleteMultiple, deleteUser, forgotPasswordController, getAllReviews, getAllUsers, getReviews, loginUserController, logoutController, refreshToken, registerSellerController, registerUserController, removeImageFromCloudinary, resendLoginOtpController, resetpassword, toggleLiveController, updateFCMToken, updateUserDetails, userAvatarController, userDetails, userKYCController, verifyForgotPasswordOtp, verifyLoginOtpController, verifyRegisterOtpController} from '../controllers/user.controller.js';
+import {addReview, addWalletBalance, authWithGoogle, changePasswordController, deleteMultiple, deleteUser, exportUsers, forgotPasswordController, getAllReviews, getAllUsers, getReviews, loginUserController, logoutController, refreshToken, registerSellerController, registerUserController, removeImageFromCloudinary, resendLoginOtpController, resetpassword, toggleLiveController, updateFCMToken, updateUserDetails, userAvatarController, userDetails, userKYCController, verifyForgotPasswordOtp, verifyLoginOtpController, verifyRegisterOtpController} from '../controllers/user.controller.js';
 import auth from '../middlewares/auth.js';
 import upload from '../middlewares/multer.js';
 
@@ -23,10 +23,12 @@ userRouter.post('/reset-password',resetpassword)
 userRouter.post('/forgot-password/change-password',changePasswordController)
 userRouter.post('/refresh-token',refreshToken)
 userRouter.get('/user-details',auth,userDetails);
+userRouter.post('/addWalletBalance',auth,addWalletBalance);
 userRouter.post('/addReview',auth,addReview);
 userRouter.get('/getReviews',getReviews);
 userRouter.get('/getAllReviews',getAllReviews);
 userRouter.get('/getAllUsers',getAllUsers);
+userRouter.get('/exportUsers',exportUsers);
 userRouter.delete('/deleteMultiple',deleteMultiple);
 userRouter.delete('/deleteUser/:id',deleteUser);
 userRouter.post("/refresh-token",refreshToken);

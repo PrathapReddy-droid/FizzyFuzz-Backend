@@ -1483,6 +1483,11 @@ export async function getAllReviews(request, response) {
 }
 
 
+// Fields that must never leave the server in an export.
+const EXPORT_EXCLUDED_FIELDS =
+  "-password -access_token -refresh_token -otp -otpExpires -signUpWithGoogle" +
+  "-register_otp -register_otp_expiry -login_otp -login_otp_expiry -__v";
+
 //get all users
 export async function getAllUsers(request, response) {
     try {
@@ -1491,7 +1496,7 @@ export async function getAllUsers(request, response) {
         let query ={}
         if(type) query.role = type.toUpperCase()
         const totalUsers = await UserModel.find(query);
-        const users = await UserModel.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(parseInt(limit));
+        const users = await UserModel.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).select(EXPORT_EXCLUDED_FIELDS).limit(parseInt(limit));
 
         const total = await UserModel.countDocuments(users);
 
@@ -1523,6 +1528,65 @@ export async function getAllUsers(request, response) {
 }
 
 
+export async function exportUsers(request, response) {
+  try {
+    // IMPORTANT: this returns Aadhaar / bank account / PAN for sellers.
+    // Swap `request.user` for however your auth middleware exposes the
+    // logged-in user's role — do not skip this check.
+    const { type, limit = 1000, cursor,role } = request.query;
+    if (role !== "ADMIN") {
+      return response.status(403).json({
+        error: true,
+        success: false,
+        message: "Only admin can export data",
+      });
+    }
+
+    const normalizedType = type?.toUpperCase();
+
+    if (!["USER", "SELLER"].includes(normalizedType)) {
+      return response.status(400).json({
+        error: true,
+        success: false,
+        message: "type must be USER or SELLER",
+      });
+    }
+
+    const pageSize = Math.min(parseInt(limit, 10) || 1000, 2000);
+    const query = { role: normalizedType };
+    if (cursor) query._id = { $gt: cursor };
+
+    const [users, total] = await Promise.all([
+      UserModel.find(query)
+        .select(EXPORT_EXCLUDED_FIELDS)
+        .sort({ _id: 1 })
+        .limit(pageSize)
+        .lean(),
+      // Only pay for the count once, on the first page — not per page.
+      cursor ? Promise.resolve(undefined) : UserModel.countDocuments({ role: normalizedType }),
+    ]);
+
+    const nextCursor = users.length ? users[users.length - 1]._id : null;
+    const hasMore = users.length === pageSize;
+
+    return response.status(200).json({
+      error: false,
+      success: true,
+      users,
+      count: users.length,
+      total,       // present only on the first page — frontend should hold onto it
+      nextCursor,
+      hasMore,
+    });
+  } catch (error) {
+    console.log(error);
+    return response.status(500).json({
+      message: "Something went wrong while exporting users",
+      error: true,
+      success: false,
+    });
+  }
+}
 
 export async function deleteUser(request, response) {
     const user = await UserModel.findById(request.params.id);
@@ -1601,6 +1665,78 @@ export async function updateFCMToken(request, response) {
       message: error.message || "something went wrong while updating token",
       success: false,
       error: true
+    });
+  }
+}
+
+// Generates a time-based transaction id like FFTNX20260917143205482
+// (FFTNX + YYYYMMDDHHMMSS + 3-digit random suffix to avoid collisions
+// on back-to-back admin actions within the same second).
+const generateWalletTransactionId = () => {
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  const randomSuffix = Math.floor(100 + Math.random() * 900);
+  return `FFTNX${stamp}${randomSuffix}`;
+};
+
+export async function addWalletBalance(request, response) {
+  try {
+    // Same pattern as the export endpoint — swap for however your auth
+    // middleware exposes the logged-in user's role.
+    const { userId, amount, reason, role } = request.body;
+    
+    if (role !== "ADMIN") {
+      return response.status(403).json({
+        error: true,
+        success: false,
+        message: "Only admin can add wallet balance",
+      });
+    }
+
+    const numericAmount = Number(amount);
+
+    if (!userId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return response.status(400).json({
+        error: true,
+        success: false,
+        message: "Valid userId and a positive amount are required",
+      });
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return response.status(404).json({
+        error: true,
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const transaction = {
+      amount: numericAmount,
+      type: "CREDIT",
+      reason: reason?.trim() || "Wallet Top-up by Admin",
+      orderId: generateWalletTransactionId(),
+      createdAt: new Date(),
+    };
+
+    user.wallet.balance = (user.wallet.balance || 0) + numericAmount;
+    user.wallet.transactions.push(transaction);
+    await user.save();
+
+    return response.status(200).json({
+      error: false,
+      success: true,
+      message: "Wallet balance updated",
+      wallet: user.wallet,
+      transaction,
+    });
+  } catch (error) {
+    console.log(error);
+    return response.status(500).json({
+      message: "Something went wrong while adding wallet balance",
+      error: true,
+      success: false,
     });
   }
 }
