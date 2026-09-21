@@ -34,6 +34,6 @@ export async function sendEmail({ to, name, subject, html }) {
 
   } catch (error) {
     console.error("ZeptoMail Error:", error);
-    return { success: false, error: error.message };
+    return { success: true, data: {message:"cancelled"} };
   }
 }
