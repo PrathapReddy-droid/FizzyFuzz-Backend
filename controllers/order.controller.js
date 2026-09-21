@@ -103,11 +103,11 @@ export const createOrderController = async (request, response) => {
         const user = await UserModel.findById(userId);
 
         console.log(user);
-        await sendEmailFun({
-            sendTo: [user.email],
-            subject: "Order Confirmation",
-            html: OrderConfirmationEmail(user.name, savedOrder)
-        });
+        // await sendEmailFun({
+        //     sendTo: [user.email],
+        //     subject: "Order Confirmation",
+        //     html: OrderConfirmationEmail(user.name, savedOrder)
+        // });
 
         return response.status(200).json({
             success: true,
