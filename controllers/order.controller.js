@@ -137,8 +137,10 @@ export const cancelOrderController = async (req, res) => {
             });
         }
 
-        // normalize sub_id
+        // normalize ids
         sub_id = String(sub_id).trim();
+        order_id = String(order_id).trim();
+        user_id = String(user_id).trim();
 
         // 🔍 Find order
         const order = await OrderModel.findOne({
@@ -147,6 +149,7 @@ export const cancelOrderController = async (req, res) => {
         });
 
         if (!order) {
+            console.error("Cancel Order: no order matched", { order_id, sub_id });
             return res.status(404).json({
                 success: false,
                 message: "Order not found"

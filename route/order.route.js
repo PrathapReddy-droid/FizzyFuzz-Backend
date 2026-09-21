@@ -6,7 +6,7 @@ import { createReturnOrderController } from "../controllers/product.controller.j
 const orderRouter = Router();
 
 orderRouter.post('/create',auth,createOrderController)
-orderRouter.post('/cancel-order',auth,cancelOrderController)
+orderRouter.post('/cancel-order',cancelOrderController)
 orderRouter.post("/order/return", auth, createReturnOrderController);
 orderRouter.post('/track-order',auth,trackMyOrder)
 orderRouter.get("/order-list",auth,getOrderDetailsController)
