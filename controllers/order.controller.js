@@ -199,24 +199,27 @@ export const cancelOrderController = async (req, res) => {
             }
         });
 
-        // 💰 refund
-        const refundAmount = Math.ceil(product.quantity * product.price);
+        // 💰 refund — only credit the wallet if the customer actually paid for it upfront
+        const isCod = order.payment_status === "CASH ON DELIVERY";
+        const refundAmount = isCod ? 0 : Math.ceil(product.quantity * product.price);
 
-        await UserModel.updateOne(
-            { _id: user_id },
-            {
-                $inc: { "wallet.balance": refundAmount },
-                $push: {
-                    "wallet.transactions": {
-                        amount: refundAmount,
-                        type: "CREDIT",
-                        reason: "Order Cancel Refund",
-                        orderId: sub_id,
-                        createdAt: new Date()
+        if (!isCod) {
+            await UserModel.updateOne(
+                { _id: user_id },
+                {
+                    $inc: { "wallet.balance": refundAmount },
+                    $push: {
+                        "wallet.transactions": {
+                            amount: refundAmount,
+                            type: "CREDIT",
+                            reason: "Order Cancel Refund",
+                            orderId: sub_id,
+                            createdAt: new Date()
+                        }
                     }
                 }
-            }
-        );
+            );
+        }
 
         return res.status(200).json({
             success: true,
