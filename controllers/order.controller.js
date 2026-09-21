@@ -24,8 +24,9 @@ export const createOrderController = async (request, response) => {
 
         const sellersSet = new Set();
         const enrichedProducts = [];
+        const validatedProducts = [];
 
-        // 🔁 Product loop
+        // 🔁 Product loop — validate first, don't touch stock yet
         for (const item of products) {
             const product = await ProductModel.findById(item.productId);
 
@@ -42,14 +43,9 @@ export const createOrderController = async (request, response) => {
             });
 
             sellersSet.add(product.seller.toString());
-
-            await ProductModel.findByIdAndUpdate(product._id, {
-                $inc: {
-                    countInStock: -item.quantity,
-                    sale: item.quantity
-                }
-            });
+            validatedProducts.push({ item, product });
         }
+
         // 🔥 Generate Order ID
         const orderId = await generateOrderId();
         console.log(3, request.body);
@@ -62,6 +58,17 @@ export const createOrderController = async (request, response) => {
                 });
             }
         }
+
+        // stock is only decremented once the order is known to be payable
+        for (const { item, product } of validatedProducts) {
+            await ProductModel.findByIdAndUpdate(product._id, {
+                $inc: {
+                    countInStock: -item.quantity,
+                    sale: item.quantity
+                }
+            });
+        }
+
         const order = new OrderModel({
             orderId,
             userId,
@@ -82,18 +89,11 @@ export const createOrderController = async (request, response) => {
             const address = await AddressModel.findOne({ userId: savedOrder.userId });
             try {
                 for (const item of products) {
-                    const user = await UserModel.findById(savedOrder.userId);
                     const sub_id = await generateSubOrderId()
-                    const product = await ProductModel.findById(item.productId);
                     item.sub_id = sub_id
-                    await ProductModel.findByIdAndUpdate(product._id, {
-                        $inc: {
-                            countInStock: -item.quantity,
-                            sale: item.quantity
-                        }
-                    });
                 }
 
+                await savedOrder.save();
 
             } catch (shipErr) {
                 console.error("Shiprocket Integration Failed:", shipErr.message);
@@ -165,7 +165,10 @@ export const cancelOrderController = async (req, res) => {
 
         // update local product status
         product.status = "CANCELLED";
-        product.shipment.status = "CANCELLED";
+        product.shipment = { ...product.shipment, status: "CANCELLED" };
+
+        // only mark the whole order as cancelled once no active products remain
+        const isLastActiveProduct = order.products.length === 1;
 
         // move product to cancelled_products
         await OrderModel.updateOne(
@@ -179,12 +182,19 @@ export const cancelOrderController = async (req, res) => {
                         cancelled_at: new Date()
                     },
                 },
-                $set: {
-                    order_status: "cancelled",
-                    "shipment.status": "CANCELLED"
-                }
+                ...(isLastActiveProduct
+                    ? { $set: { order_status: "cancelled", "shipment.status": "CANCELLED" } }
+                    : {})
             }
         );
+
+        // ♻️ restock inventory
+        await ProductModel.findByIdAndUpdate(product.productId, {
+            $inc: {
+                countInStock: product.quantity,
+                sale: -product.quantity
+            }
+        });
 
         // 💰 refund
         const refundAmount = Math.ceil(product.quantity * product.price);
@@ -224,6 +234,14 @@ export const cancelOrderController = async (req, res) => {
 export const trackMyOrder = async (req, res) => {
     try {
         let { sub_id, order_id, user_id, reason } = req.body;
+
+        if (!sub_id || !order_id) {
+            return res.status(400).json({
+                success: false,
+                message: "order_id and sub_id are required"
+            });
+        }
+
         const order = await OrderModel.findOne({
             _id: order_id,
             "products.sub_id": sub_id
@@ -245,7 +263,15 @@ export const trackMyOrder = async (req, res) => {
             });
         }
 
-        let shipment_id = product?.shipment.shipment_id
+        const shipment_id = product?.shipment?.shipment_id;
+
+        if (!shipment_id) {
+            return res.status(404).json({
+                success: false,
+                message: "Tracking not available for this product yet"
+            });
+        }
+
         let result = await trackShiprocketOrder(shipment_id)
         return res.status(200).json({
             success: true,
@@ -279,7 +305,7 @@ export async function getOrderDetailsController(request, response) {
 
         const orderlist = await OrderModel.find(query).sort({ createdAt: -1 }).populate('delivery_address userId').skip((page - 1) * limit).limit(parseInt(limit));
 
-        const total = await OrderModel.countDocuments(orderlist);
+        const total = await OrderModel.countDocuments(query);
 
         return response.json({
             message: "order list",
@@ -414,14 +440,27 @@ export const captureOrderPaypalController = async (request, response) => {
         const req = new paypal.orders.OrdersCaptureRequest(paymentId);
         req.requestBody({});
 
+        const client = getPayPalClient();
+        const capture = await client.execute(req);
+
+        if (capture.result.status !== "COMPLETED") {
+            return response.status(402).json({
+                success: false,
+                error: true,
+                message: "Payment was not completed"
+            });
+        }
+
+        const orderId = await generateOrderId();
+
         const orderInfo = {
+            orderId,
             userId: request.body.userId,
             products: request.body.products,
             paymentId: request.body.paymentId,
-            payment_status: request.body.payment_status,
+            payment_status: "paid",
             delivery_address: request.body.delivery_address,
-            totalAmt: request.body.totalAmount,
-            date: request.body.date
+            totalAmt: request.body.totalAmount
         }
 
         const order = new OrderModel(orderInfo);
@@ -448,7 +487,7 @@ export const captureOrderPaypalController = async (request, response) => {
             await ProductModel.findByIdAndUpdate(
                 request.body.products[i].productId,
                 {
-                    countInStock: parseInt(request.body.products[i].countInStock - request.body.products[i].quantity),
+                    countInStock: parseInt(product?.countInStock - request.body.products[i].quantity),
                     sale: parseInt(product?.sale + request.body.products[i].quantity)
                 },
                 { new: true }
@@ -480,10 +519,8 @@ export const updateOrderStatusController = async (request, response) => {
     try {
         const { id, order_status } = request.body;
 
-        const updateOrder = await OrderModel.updateOne(
-            {
-                _id: id,
-            },
+        const updateOrder = await OrderModel.findByIdAndUpdate(
+            id,
             {
                 order_status: order_status,
             },
@@ -879,32 +916,40 @@ export const totalUsersController = async (request, response) => {
 
 
 export async function deleteOrder(request, response) {
-    const order = await OrderModel.findById(request.params.id);
+    try {
+        const order = await OrderModel.findById(request.params.id);
 
-    console.log(request.params.id)
+        console.log(request.params.id)
 
-    if (!order) {
-        return response.status(404).json({
-            message: "Order Not found",
+        if (!order) {
+            return response.status(404).json({
+                message: "Order Not found",
+                error: true,
+                success: false
+            })
+        }
+
+
+        const deletedOrder = await OrderModel.findByIdAndDelete(request.params.id);
+
+        if (!deletedOrder) {
+            return response.status(404).json({
+                message: "Order not deleted!",
+                success: false,
+                error: true
+            });
+        }
+
+        return response.status(200).json({
+            success: true,
+            error: false,
+            message: "Order Deleted!",
+        });
+    } catch (error) {
+        return response.status(500).json({
+            message: error.message || error,
             error: true,
             success: false
         })
     }
-
-
-    const deletedOrder = await OrderModel.findByIdAndDelete(request.params.id);
-
-    if (!deletedOrder) {
-        response.status(404).json({
-            message: "Order not deleted!",
-            success: false,
-            error: true
-        });
-    }
-
-    return response.status(200).json({
-        success: true,
-        error: false,
-        message: "Order Deleted!",
-    });
 }
