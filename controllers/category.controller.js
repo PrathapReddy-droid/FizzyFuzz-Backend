@@ -317,35 +317,44 @@ export async function deleteCategory(request, response) {
     });
 }
 
-export async function updatedCategory(request, response){
-    console.log(request.body.name)
-    const category = await CategoryModel.findByIdAndUpdate(
-        request.params.id,
-        {
-          name: request.body.name,
-          images: imagesArr.length>0 ? imagesArr[0] : request.body.images,
-          parentId:request.body.parentId,
-          parentCatName: request.body.parentCatName
-        },
-        { new: true }
-      );
+export async function updatedCategory(request, response) {
+  console.log(request.body.name);
 
-      if (!category) {
-        return response.status(500).json({
-          message: "Category cannot be updated!",
-          success: false,
-          error:true
-        });
+  let updateObj = {
+    name: request.body.name,
+    parentId: request.body.parentId,
+    parentCatName: request.body.parentCatName,
+    isFssaiRequired : request.body.isFssaiRequired
+  };
+
+  if (imagesArr.length > 0) {
+    updateObj.$push = {
+      images: {
+        $each: imagesArr
       }
+    };
+  }
 
+  const category = await CategoryModel.findByIdAndUpdate(
+    request.params.id,
+    updateObj,
+    { new: true }
+  );
 
-      imagesArr = [];
-      
-      response.status(200).json({
-        error:false,
-        success:true,
-        category:category,
-        message:"Category updated successfully"
-      })
-    
+  if (!category) {
+    return response.status(500).json({
+      message: "Category cannot be updated!",
+      success: false,
+      error: true
+    });
+  }
+
+  imagesArr = [];
+
+  response.status(200).json({
+    error: false,
+    success: true,
+    category,
+    message: "Category updated successfully"
+  });
 }
